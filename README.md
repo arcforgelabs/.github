@@ -110,7 +110,7 @@ that list has at least one valid child of the response's own parent run. The
 receipt is host provenance that the child was registered and its task ownership
 accepted, including when the parent fails afterward. It does not prove the child
 is running, completed, successful, or published. `expectsCompletionMessage: false`
-means that child will not send its parent a completion message. It is not
+records that no child completion message is expected. It is not
 a failed dispatch. A missing `acceptedDelegations` field does not prove the hook
 had no side effects. Malformed, empty, overlong, or parent-matching run ids, an
 oversized receipt list, a non-boolean `expectsCompletionMessage`, an unknown
