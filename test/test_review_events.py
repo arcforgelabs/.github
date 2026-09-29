@@ -22,11 +22,15 @@ class ReviewEvents(unittest.TestCase):
     def test_only_body_edits_trigger(self):
         e=self.event('edited');self.assertIsNone(request('pull_request_target',e,REPO,'42'))
         e['changes']={'body':{'from':'old'}};self.assertIsNotNone(request('pull_request_target',e,REPO,'42'))
-    def test_drafts_closed_field_and_cross_repo(self):
-        for change in [{'draft':True},{'state':'closed'},{'number':True}]:
+    def test_closed_field_and_cross_repo(self):
+        for change in [{'draft':None},{'state':'closed'},{'number':True}]:
             e=self.event();e['pull_request'].update(change);self.assertIsNone(request('pull_request_target',e,REPO,'42'))
         self.assertRaises(ValueError,request,'pull_request_target',self.event(),'arcforgelabs/another','42')
         e=self.event();e['repository']['full_name']='arcforgelabs/arc-forge-field';self.assertIsNone(request('pull_request_target',e,'arcforgelabs/arc-forge-field','42'))
+    def test_drafts_receive_advisory_review(self):
+        e=self.event();e['pull_request']['draft']=True
+        self.assertIn('pull request #12',request('pull_request_target',e,REPO,'42')['message'])
+
     def test_only_explicit_trusted_comment(self):
         e={'repository':{'full_name':REPO},'action':'created','issue':{'number':12,'state':'open','pull_request':{}},'comment':{'author_association':'MEMBER','body':'@clawsweeper review'}}
         self.assertIn('pull request #12',request('issue_comment',e,REPO,'42')['message'])

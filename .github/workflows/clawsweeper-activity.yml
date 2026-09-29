@@ -58,7 +58,7 @@ jobs:
                   kind = 'issue'
               elif event_name == 'pull_request_target' and action in ('opened', 'reopened', 'ready_for_review', 'synchronize', 'edited'):
                   item = event.get('pull_request', {})
-                  if item.get('draft') is not False:
+                  if type(item.get('draft')) is not bool:
                       return None
                   if action == 'edited' and 'body' not in event.get('changes', {}):
                       return None
