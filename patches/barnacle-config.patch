@@ -1,0 +1,114 @@
+diff --git scripts/github/barnacle-auto-response.mjs scripts/github/barnacle-auto-response.mjs
+index 11406df..3e1d962 100644
+--- scripts/github/barnacle-auto-response.mjs
++++ scripts/github/barnacle-auto-response.mjs
+@@ -9,13 +9,13 @@ import {
+   labelsForPullRequestContext,
+ } from "./real-behavior-proof-policy.mjs";
+ 
+-const activePrLimit = 20;
++let activePrLimit = 20;
+ const skillCloseLabel = "r: skill";
+ 
+ const thirdPartyExtensionMessage =
+   "Please publish this as a third-party plugin on [ClawHub](https://clawhub.ai) instead of adding it to the core repo. Docs: https://docs.openclaw.ai/plugin and https://docs.openclaw.ai/clawhub";
+ 
+-const rules = [
++let rules = [
+   {
+     label: skillCloseLabel,
+     close: true,
+@@ -208,8 +208,8 @@ const bugTypeToLabel = {
+ };
+ const bugSubtypeLabels = Object.keys(bugSubtypeLabelSpecs);
+ 
+-const maintainerTeam = "maintainer";
+-const pingWarningMessage =
++let maintainerTeam = "maintainer";
++let pingWarningMessage =
+   "Please don’t spam-ping multiple maintainers at once. Be patient, or join our community Discord for help: https://discord.gg/clawd";
+ const mentionRegex = /@([A-Za-z0-9-]+)/g;
+ const triggerLabel = "trigger-response";
+@@ -224,10 +224,10 @@ const privilegedAuthorAssociations = new Set(["OWNER", "MEMBER", "COLLABORATOR"]
+ const privilegedRepositoryRoles = new Set(["admin", "maintain", "write"]);
+ const candidateLabelValues = Object.values(candidateLabels);
+ const structuralContextLabelValues = [NEEDS_PR_CONTEXT_LABEL, skillCloseLabel];
+-const noisyPrMessage =
++let noisyPrMessage =
+   "Closing this PR because it looks dirty (too many unrelated or unexpected changes). This usually happens when a branch picks up unrelated commits or a merge went sideways. Please recreate the PR from a clean branch.";
+ 
+-const candidateActionRules = [
++let candidateActionRules = [
+   {
+     label: candidateLabels.needsPrContext,
+     close: true,
+@@ -283,7 +283,40 @@ const candidateActionRules = [
+ ];
+ 
+ const normalizeLogin = (login) => login.toLowerCase();
+-const automationPrHeadPrefixes = ["clawsweeper/", "clownfish/"];
++
++// Arc Forge patch (see patches/README.md): OpenClaw's hardcoded values become
++// deployment config. Omitted keys keep upstream's values, so upstream's tests
++// still describe the default behavior.
++let issueKeywordLabels = [
++  { label: "security", title: "security" },
++  { label: "r: testflight", title: "testflight" },
++  { label: "r: moltbook", text: "moltbook" },
++];
++
++const enabledRules = (list) =>
++  list.filter((rule) => rule.enabled !== false).map(({ enabled: _enabled, ...rule }) => rule);
++
++export function configureBarnacle(config = {}) {
++  if (config.activePrLimit !== undefined) activePrLimit = Number(config.activePrLimit);
++  if (config.maintainerTeam) maintainerTeam = config.maintainerTeam;
++  if (config.pingWarningMessage) pingWarningMessage = config.pingWarningMessage;
++  if (config.noisyPrMessage) noisyPrMessage = config.noisyPrMessage;
++  if (config.automationPrHeadPrefixes) automationPrHeadPrefixes = [...config.automationPrHeadPrefixes];
++  if (config.linkedReferenceRepo) {
++    linkedReferencePattern = new RegExp(
++      `(?:#\\d+|github\\.com\\/${escapeRegExp(config.linkedReferenceRepo)}\\/(?:issues|pull)\\/\\d+)`,
++      "i",
++    );
++  }
++  if (config.issueKeywordLabels) issueKeywordLabels = config.issueKeywordLabels;
++  if (config.rules) rules = enabledRules(config.rules);
++  if (config.candidateActionRules) candidateActionRules = enabledRules(config.candidateActionRules);
++  for (const [name, spec] of Object.entries(config.labels ?? {})) {
++    if (spec === null) delete managedLabelSpecs[name];
++    else managedLabelSpecs[name] = spec;
++  }
++}
++let automationPrHeadPrefixes = ["clawsweeper/", "clownfish/"];
+ 
+ function isAutomationPullRequest(pullRequest) {
+   const headRefName = pullRequest.headRefName ?? pullRequest.head?.ref ?? "";
+@@ -315,8 +348,10 @@ function extractIssueFormValue(body, field) {
+   return "";
+ }
+ 
++let linkedReferencePattern = /(?:#\d+|github\.com\/openclaw\/openclaw\/(?:issues|pull)\/\d+)/i;
++
+ function hasLinkedReference(text) {
+-  return /(?:#\d+|github\.com\/openclaw\/openclaw\/(?:issues|pull)\/\d+)/i.test(text);
++  return linkedReferencePattern.test(text);
+ }
+ 
+ function hasFilledTemplateLine(body, field) {
+@@ -1061,11 +1096,10 @@ export async function runBarnacleAutoResponse({ github, context, core = console
+     const title = issue.title ?? "";
+     const body = issue.body ?? "";
+     const haystack = `${title}\n${body}`.toLowerCase();
+-    for (const [label, matches] of [
+-      ["security", title.toLowerCase().includes("security")],
+-      ["r: testflight", title.toLowerCase().includes("testflight")],
+-      ["r: moltbook", haystack.includes("moltbook")],
+-    ]) {
++    for (const [label, matches] of issueKeywordLabels.map((rule) => [
++      rule.label,
++      rule.title ? title.toLowerCase().includes(rule.title) : haystack.includes(rule.text),
++    ])) {
+       if (!matches || labelSet.has(label)) {
+         continue;
+       }

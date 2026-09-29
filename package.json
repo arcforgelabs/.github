@@ -1,0 +1,12 @@
+{
+  "name": "arcforgelabs-dot-github",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "verify-vendor": "scripts/sync-upstream.sh"
+  },
+  "devDependencies": {
+    "vitest": "5.0.1"
+  }
+}
