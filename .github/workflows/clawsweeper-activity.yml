@@ -103,11 +103,13 @@ jobs:
               return re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._:-]*', value) is not None
 
           def child_acceptance_count(result, completion):
+              receipts = completion.get('acceptedDelegations')
+              if type(receipts) is not list or len(receipts) > MAX_ACCEPTED_DELEGATIONS:
+                  raise ValueError('Gateway review dispatch receipt is malformed')
+              if not receipts:
+                  return 0
               parent = result.get('runId')
               if not valid_run_id(parent):
-                  raise ValueError('Gateway review dispatch receipt is malformed')
-              receipts = completion.get('acceptedDelegations')
-              if type(receipts) is not list or not 0 < len(receipts) <= MAX_ACCEPTED_DELEGATIONS:
                   raise ValueError('Gateway review dispatch receipt is malformed')
               accepted = 0
               for receipt in receipts:

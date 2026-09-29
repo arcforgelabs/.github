@@ -65,6 +65,9 @@ class ReviewEvents(unittest.TestCase):
         self.assertIsNone(got['warning'])
         self.assertEqual(outcome({'ok':True,'completion':{'status':'ok','replyDisposition':'silent'}})['outcome'],'parent_dispatch')
         self.assertNotIn('acceptedDelegations', legacy['completion'])
+        empty=copy.deepcopy(legacy)
+        empty['completion']['acceptedDelegations']=[]
+        self.assertEqual(outcome(empty)['outcome'],'parent_dispatch')
         for result in [None,{}, {'ok':False}, {'ok':True}, {'ok':True,'completion':{'status':'error'}}, {'ok':True,'completion':{'status':'timeout'}}, {'ok':True,'completion':{'status':'skipped'}}]:
             self.assertRaises(ValueError,outcome,result)
 
