@@ -51,4 +51,10 @@ class ReviewEvents(unittest.TestCase):
             self.assertRaises(ValueError,build,url,'test-token',payload)
         self.assertRaises(ValueError,NS['NoRedirect']().redirect_request,None,None,302,'Redirect',{},'https://evil.example/')
 
+    def test_admission_acknowledgement_is_not_completion(self):
+        validate=NS['assert_hook_completed']
+        validate({'ok':True,'completion':{'status':'ok','replyDisposition':'silent'}})
+        for result in [None,{}, {'ok':False}, {'ok':True}, {'ok':True,'completion':{'status':'error'}}, {'ok':True,'completion':{'status':'timeout'}}]:
+            self.assertRaises(ValueError,validate,result)
+
 if __name__=='__main__':unittest.main()
