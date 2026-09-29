@@ -48,7 +48,7 @@ jobs:
               target = urllib.parse.urlsplit(url)
               if target.scheme != 'https' or target.hostname != 'team.arcforge.au' or target.port not in (None, 443) or target.username is not None or target.password is not None or target.path != '/hooks/agent' or target.query or target.fragment:
                   raise ValueError('Unexpected hook destination')
-              return urllib.request.Request(url, data=json.dumps(payload).encode(), method='POST', headers={'Authorization':'Bearer '+token,'Content-Type':'application/json','Idempotency-Key':payload['idempotencyKey']})
+              return urllib.request.Request(url, data=json.dumps(payload).encode(), method='POST', headers={'Authorization':'Bearer '+token,'Content-Type':'application/json','User-Agent':'ArcForge-ClawSweeper/1.0','Idempotency-Key':payload['idempotencyKey']})
 
           def review_request(event_name, event, repository, run_id):
               if not re.fullmatch(r'arcforgelabs/[A-Za-z0-9_.-]+', repository):

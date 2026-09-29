@@ -44,7 +44,9 @@ class ReviewEvents(unittest.TestCase):
 
     def test_hook_token_never_follows_redirects_or_wrong_destinations(self):
         build=NS['hook_request']; payload={'idempotencyKey':'proof'}
-        self.assertEqual(build('https://team.arcforge.au/hooks/agent','test-token',payload).full_url,'https://team.arcforge.au/hooks/agent')
+        req=build('https://team.arcforge.au/hooks/agent','test-token',payload)
+        self.assertEqual(req.full_url,'https://team.arcforge.au/hooks/agent')
+        self.assertEqual(req.get_header('User-agent'),'ArcForge-ClawSweeper/1.0')
         for url in ['http://team.arcforge.au/hooks/agent','https://evil.example/hooks/agent','https://team.arcforge.au/hooks/agent/','https://user@team.arcforge.au/hooks/agent','https://team.arcforge.au/hooks/agent?token=x']:
             self.assertRaises(ValueError,build,url,'test-token',payload)
         self.assertRaises(ValueError,NS['NoRedirect']().redirect_request,None,None,302,'Redirect',{},'https://evil.example/')
