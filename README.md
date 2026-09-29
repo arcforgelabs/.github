@@ -52,15 +52,26 @@ team.
 
 ## ClawSweeper activity
 
-`.github/workflows/clawsweeper-activity.yml` sends new issues and ready PRs to the `clawsweeper` agent
-on the Arc Haven gateway (`POST team.arcforge.au/hooks/agent`). It uses upstream ClawSweeper's
-notifier (`repair:notify-github-activity`) unchanged, from `arcforgelabs/clawsweeper` at a pinned
-SHA.
+`.github/workflows/clawsweeper-activity.yml` sends issues and review requests to the
+`clawsweeper` agent on Arc Haven (`POST team.arcforge.au/hooks/agent`). The adapter
+runs without a checkout and sends only the repository, item number and event type.
+PR titles, bodies and arbitrary comment text never become gateway instructions.
 
-Upstream runs the notifier inside its public ClawSweeper repo. Ours runs in each calling repo, so
-activity from private repos never reaches public Actions logs. The agent hands each item to its own
-session, `agent:clawsweeper:gh-<repo>-<n>`, and returns immediately, so each job lasts only a couple
-of minutes.
+Ready PRs are reviewed on open, reopen, new commits and body edits. Owners, members
+and collaborators can request another review with an exact `@clawsweeper review`
+or `@clawsweeper re-review` comment. Draft PRs are skipped by PR events; the gateway
+publisher independently refuses to approve drafts. Field is excluded.
+
+This replaces the upstream notifier for this integration because that notifier
+filters out synchronize/body-edit events needed to keep formal approvals current.
+The existing gateway agent delegates each item to its own session and returns;
+the event workflow neither merges nor approves. Formal review publication and
+receipt verification belong to Forge Tools and the receiving repository.
+
+Activity from private repos stays in that repository's Actions run. A stable
+idempotency key prevents delivery retries from repeating the same request.
+No timer or scheduled work is introduced. Validate the event adapter with
+`python3 -m unittest discover -s test -p 'test_review_events.py'`.
 
 - **Secrets (org):** `CLAWSWEEPER_OPENCLAW_HOOK_URL` and `CLAWSWEEPER_OPENCLAW_HOOK_TOKEN`. The
   token is in Bitwarden as "Arc Haven gateway hooks token (clawsweeper)".
