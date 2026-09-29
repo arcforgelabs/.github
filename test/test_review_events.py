@@ -1,7 +1,13 @@
 import copy
+import contextlib
+import io
+import json
+import os
 from pathlib import Path
+import tempfile
 import textwrap
 import unittest
+from unittest.mock import patch
 
 TEXT=(Path(__file__).parents[1]/'.github/workflows/clawsweeper-activity.yml').read_text()
 NS={}
@@ -122,11 +128,32 @@ class ReviewEvents(unittest.TestCase):
         rendered=repr(got)
         for hidden in [secret, output, parent, child]:
             self.assertNotIn(hidden, rendered)
-        printer=TEXT.split('outcome = dispatch_outcome(result)',1)[1]
-        self.assertIn("print('::warning::' + outcome['warning'])", printer)
-        self.assertNotIn('print(result', printer)
-        self.assertNotIn('acceptedDelegations', printer)
-        self.assertNotIn('sessionKey', printer)
-        self.assertNotIn(secret, printer)
+        script=textwrap.dedent(TEXT.split("python3 - <<'PYTHON'\n",1)[1].rsplit('PYTHON',1)[0])
+        with tempfile.TemporaryDirectory() as directory:
+            event=Path(directory)/'event.json'
+            event.write_text(json.dumps(self.event()))
+            env={'GITHUB_EVENT_PATH':str(event),'GITHUB_EVENT_NAME':'pull_request_target',
+                 'GITHUB_REPOSITORY':REPO,'GITHUB_RUN_ID':'42',
+                 'HOOK_URL':'https://team.arcforge.au/hooks/agent','HOOK_TOKEN':'private-hook-token'}
+            for malformed in (False,True):
+                response=copy.deepcopy(payload)
+                if malformed:
+                    response['completion']['acceptedDelegations'][0]['runId']=''
+                stdout=io.StringIO()
+                with patch.dict(os.environ,env), patch('urllib.request.build_opener') as opener, contextlib.redirect_stdout(stdout):
+                    opener.return_value.open.return_value=io.BytesIO(json.dumps(response).encode())
+                    if malformed:
+                        with self.assertRaisesRegex(SystemExit,'receipt is malformed'):
+                            exec(compile(script,'<workflow>','exec'),{})
+                    else:
+                        exec(compile(script,'<workflow>','exec'),{})
+                    opener.return_value.open.assert_called_once()
+                logged=stdout.getvalue()
+                for hidden in [secret,output,parent,child,env['HOOK_TOKEN']]:
+                    self.assertNotIn(hidden,logged)
+                if not malformed:
+                    self.assertIn('::warning::Gateway parent completion status is error',logged)
+                    self.assertIn('acknowledged from an accepted child delegation',logged)
+                    self.assertNotIn('review completed',logged)
 
 if __name__=='__main__':unittest.main()
