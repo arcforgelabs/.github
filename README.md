@@ -97,14 +97,34 @@ publisher independently refuses to approve drafts. Field is excluded.
 
 This replaces the upstream notifier for this integration because that notifier
 filters out synchronize/body-edit events needed to keep formal approvals current.
-The existing gateway agent delegates each item to its own session and returns;
-the event workflow neither merges nor approves. Formal review publication and
-receipt verification belong to Forge Tools and the receiving repository.
+The existing gateway agent delegates each item to its own session and returns.
+The event workflow neither merges nor approves. A green run acknowledges
+dispatch only. It does not mean the review finished or was published. Formal
+review publication still belongs to Forge Tools and the receiving repository.
 
-Activity from private repos stays in that repository's Actions run. A stable
-idempotency key prevents delivery retries from repeating the same request.
-The hook destination is restricted to the existing HTTPS gateway endpoint and all
-redirects are rejected, so a redirect cannot forward the bearer token.
+A short parent turn with `completion.status: ok` is one acknowledgement. It does
+not need `acceptedDelegations`. The other acknowledgement is an accepted child
+delegation: once the gateway runtime that emits `completion.acceptedDelegations`
+is activated, parent `completion.status: error` still acknowledges dispatch when
+that list has at least one valid child of the response's own parent run. The
+receipt is host provenance that the child was registered and its task ownership
+accepted, including when the parent fails afterward. It does not prove the child
+is running, completed, successful, or published. `expectsCompletionMessage: false`
+records that no child completion message is expected. It is not
+a failed dispatch. A missing `acceptedDelegations` field does not prove the hook
+had no side effects. Malformed, empty, overlong, or parent-matching run ids, an
+oversized receipt list, a non-boolean `expectsCompletionMessage`, an unknown
+completion status, or `ok: false` fail the job. HTTP 200 alone is not success. The workflow does not retry. When a
+receipt allows acceptance, parent status `error` is a workflow warning. The log
+does not include the response body, session keys, model output, or run ids.
+That receipt contract is not active on the running gateway yet. Until that
+runtime is activated, parent status `error` still fails the job.
+
+Activity from private repos stays in that repository's Actions run. The request
+carries a stable idempotency key. Gateway replay of that key is in-memory and
+bounded, and it does not survive a gateway restart. The hook destination is
+restricted to the existing HTTPS gateway endpoint and all redirects are
+rejected, so a redirect cannot forward the bearer token.
 Requests identify the integration as `ArcForge-ClawSweeper/1.0`; the gateway edge
 rejects Python's generic client identity. No timer or scheduled work is introduced. Validate the event adapter with
 `python3 -m unittest discover -s test -p 'test_review_events.py'`.

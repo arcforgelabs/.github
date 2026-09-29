@@ -93,12 +93,50 @@ jobs:
               ])
               key = hashlib.sha256(f'{repository}:{event_name}:{action}:{number}:{run_id}'.encode()).hexdigest()
               return {'name':'GitHub review request','agentId':'clawsweeper','deliver':False,'idempotencyKey':key,'thinking':'low','timeoutSeconds':60,'waitForCompletion':True,'message':message}
-          def assert_hook_completed(result):
-              if not isinstance(result, dict) or result.get('ok') is not True:
+          # Receipts are bounded host provenance, not child liveness or review completion.
+          MAX_ACCEPTED_DELEGATIONS = 32
+          MAX_RUN_ID_LENGTH = 128
+
+          def valid_run_id(value):
+              if not isinstance(value, str) or not 1 <= len(value) <= MAX_RUN_ID_LENGTH:
+                  return False
+              return re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._:-]*', value) is not None
+
+          def child_acceptance_count(result, completion):
+              receipts = completion.get('acceptedDelegations')
+              if type(receipts) is not list or len(receipts) > MAX_ACCEPTED_DELEGATIONS:
+                  raise ValueError('Gateway review dispatch receipt is malformed')
+              if not receipts:
+                  return 0
+              parent = result.get('runId')
+              if not valid_run_id(parent):
+                  raise ValueError('Gateway review dispatch receipt is malformed')
+              accepted = 0
+              for receipt in receipts:
+                  if type(receipt) is not dict:
+                      raise ValueError('Gateway review dispatch receipt is malformed')
+                  child = receipt.get('runId')
+                  if not valid_run_id(child) or child == parent:
+                      raise ValueError('Gateway review dispatch receipt is malformed')
+                  if 'expectsCompletionMessage' in receipt and type(receipt.get('expectsCompletionMessage')) is not bool:
+                      raise ValueError('Gateway review dispatch receipt is malformed')
+                  accepted += 1
+              return accepted
+
+          def dispatch_outcome(result):
+              if type(result) is not dict or result.get('ok') is not True:
                   raise ValueError('Gateway did not accept the review request')
               completion = result.get('completion')
-              if not isinstance(completion, dict) or completion.get('status') != 'ok':
+              if type(completion) is not dict:
                   raise ValueError('Gateway review dispatch did not complete successfully')
+              status = completion.get('status')
+              if status == 'ok':
+                  if 'acceptedDelegations' in completion:
+                      child_acceptance_count(result, completion)
+                  return {'outcome':'parent_dispatch','message':'Gateway review dispatch acknowledged','warning':None}
+              if status == 'error' and 'acceptedDelegations' in completion and child_acceptance_count(result, completion) >= 1:
+                  return {'outcome':'child_acceptance','message':'Gateway review dispatch acknowledged from an accepted child delegation','warning':'Gateway parent completion status is error'}
+              raise ValueError('Gateway review dispatch did not complete successfully')
 
           # review-event-adapter:end
           event = json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_text())
@@ -114,8 +152,10 @@ jobs:
               # Do not print the hook URL/token or server response body.
               raise SystemExit('Gateway review request failed: '+type(error).__name__) from None
           try:
-              assert_hook_completed(result)
+              outcome = dispatch_outcome(result)
           except ValueError as error:
               raise SystemExit(str(error)) from None
-          print('Gateway review dispatch completed')
+          if outcome['warning']:
+              print('::warning::' + outcome['warning'])
+          print(outcome['message'])
           PYTHON
