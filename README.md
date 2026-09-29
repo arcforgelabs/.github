@@ -59,7 +59,7 @@ PR titles, bodies and arbitrary comment text never become gateway instructions.
 
 Ready PRs are reviewed on open, reopen, new commits and body edits. Owners, members
 and collaborators can request another review with an exact `@clawsweeper review`
-or `@clawsweeper re-review` comment. Draft PRs are skipped by PR events; the gateway
+or `@clawsweeper re-review` comment. Draft PRs receive advisory reports; the gateway
 publisher independently refuses to approve drafts. Field is excluded.
 
 This replaces the upstream notifier for this integration because that notifier
@@ -72,7 +72,8 @@ Activity from private repos stays in that repository's Actions run. A stable
 idempotency key prevents delivery retries from repeating the same request.
 The hook destination is restricted to the existing HTTPS gateway endpoint and all
 redirects are rejected, so a redirect cannot forward the bearer token.
-No timer or scheduled work is introduced. Validate the event adapter with
+Requests identify the integration as `ArcForge-ClawSweeper/1.0`; the gateway edge
+rejects Python's generic client identity. No timer or scheduled work is introduced. Validate the event adapter with
 `python3 -m unittest discover -s test -p 'test_review_events.py'`.
 
 - **Secrets (org):** `CLAWSWEEPER_OPENCLAW_HOOK_URL` and `CLAWSWEEPER_OPENCLAW_HOOK_TOKEN`. The
