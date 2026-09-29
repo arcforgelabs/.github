@@ -7,6 +7,7 @@
     "verify-vendor": "scripts/sync-upstream.sh"
   },
   "devDependencies": {
-    "vitest": "5.0.1"
+    "vitest": "5.0.1",
+    "yaml": "2.9.1"
   }
 }
