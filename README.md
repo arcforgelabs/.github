@@ -35,7 +35,14 @@ branches. `bad-barnacle` switches Barnacle off for one item.
 repositories. It has issues and pull requests write, and members, metadata, contents and actions
 read. It has no webhook. Its key is the org secret `BARNACLE_APP_PRIVATE_KEY`, and the Bitwarden
 item is "Arc Forge Barnacle GitHub App". It's separate from the ClawSweeper review App and from the
-`arc-forge-clawsweeper` deploy-provenance App.
+`arc-forge-clawsweeper` deploy-provenance App. The App's bot account is `arc-forge-barnacle[bot]`,
+**user ID 335282622**. That is the value to swap in wherever upstream hardcodes Barnacle's actor IDs
+(257215752 and 264559031), for example in `stale.yml`.
+
+**Keep org membership public.** GitHub only reports `author_association: MEMBER` in event payloads
+for members whose membership is public. Upstream's job-level skip depends on that, so for a private
+member every event starts a billed job before the script exempts them through the `maintainer`
+team.
 
 **Turning a rule on or off:**
 - For every repo, edit `barnacle/config.json`.
