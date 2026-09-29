@@ -1,0 +1,118 @@
+// Arc Forge config on top of upstream Barnacle: disabled rules stay inert,
+// enabled rules close, members/maintainers/bots stay exempt, repo overrides merge.
+import { describe, expect, it } from "vitest";
+import { mergeConfig, run } from "../barnacle/run.mjs";
+import { managedLabelSpecs } from "../vendor/openclaw/scripts/github/barnacle-auto-response.mjs";
+
+function notFound() {
+  const error = new Error("not found");
+  error.status = 404;
+  return error;
+}
+
+function mockGithub({ maintainers = [], override } = {}) {
+  const calls = { addLabels: [], createComment: [], lock: [], removeLabel: [], update: [] };
+  const github = {
+    paginate: async () => [],
+    rest: {
+      issues: {
+        addLabels: async (p) => calls.addLabels.push(p),
+        createComment: async (p) => calls.createComment.push(p),
+        createLabel: async () => undefined,
+        getLabel: async ({ name }) => ({ data: { color: managedLabelSpecs[name]?.color ?? "C5DEF5", description: managedLabelSpecs[name]?.description ?? "" } }),
+        lock: async (p) => calls.lock.push(p),
+        removeLabel: async (p) => calls.removeLabel.push(p),
+        update: async (p) => calls.update.push(p),
+        updateLabel: async () => undefined,
+      },
+      pulls: { listFiles: async () => [] },
+      repos: {
+        getCollaboratorPermissionLevel: async () => ({ data: { permission: "read", role_name: "read" } }),
+        getContent: async () => {
+          if (!override) throw notFound();
+          return { data: { content: Buffer.from(JSON.stringify(override)).toString("base64") } };
+        },
+      },
+      teams: {
+        getMembershipForUserInOrg: async ({ username }) => {
+          if (maintainers.includes(username.toLowerCase())) return { data: { state: "active" } };
+          throw notFound();
+        },
+      },
+    },
+  };
+  return { calls, github };
+}
+
+function issueContext({ labels = [], action = "labeled", label, association = "NONE", login = "outsider", comment, title = "Something broke", body = "" } = {}) {
+  return {
+    repo: { owner: "arcforgelabs", repo: "arc-forge-deck" },
+    payload: {
+      action,
+      label: label ? { name: label } : undefined,
+      sender: { login: "IAMSamuelRodda", type: "User" },
+      repository: { default_branch: "main" },
+      issue: { number: 7, title, body, author_association: association, user: { login }, labels: labels.map((name) => ({ name })) },
+      comment,
+    },
+  };
+}
+
+const core = { info: () => undefined, warning: () => undefined };
+
+async function barnacle(context, options) {
+  const { calls, github } = mockGithub(options);
+  await run({ github, context, core });
+  return calls;
+}
+
+describe("Arc Forge Barnacle config", () => {
+  it("closes with the Arc Forge message when a maintainer applies an enabled rule label", async () => {
+    const calls = await barnacle(issueContext({ labels: ["r: support"], label: "r: support" }));
+    expect(calls.createComment).toHaveLength(1);
+    expect(calls.createComment[0].body).toContain("Arc Forge support");
+    expect(calls.createComment[0].body).not.toMatch(/discord|clawhub|openclaw/i);
+    expect(calls.update).toEqual([expect.objectContaining({ issue_number: 7, state: "closed" })]);
+  });
+
+  it("keeps OpenClaw-product rules defined but inert", async () => {
+    const calls = await barnacle(issueContext({ labels: ["r: skill"], label: "r: skill" }));
+    expect(calls.createComment).toEqual([]);
+    expect(calls.update).toEqual([]);
+    expect(managedLabelSpecs["r: skill"].description).not.toMatch(/clawhub/i);
+  });
+
+  it("does not answer disabled comment keyword triggers", async () => {
+    const calls = await barnacle(
+      issueContext({ action: "created", comment: { body: "any testflight or moltbook build?", user: { login: "outsider", type: "User" } } }),
+    );
+    expect(calls.createComment).toEqual([]);
+  });
+
+  it("keyword-labels only security, on a label event as upstream does", async () => {
+    const calls = await barnacle(issueContext({ labels: ["bug"], label: "bug", title: "TestFlight moltbook security hole" }));
+    expect(calls.addLabels.map((c) => c.labels).flat()).toEqual(["security"]);
+  });
+
+  it("exempts maintainer-team authors and org members", async () => {
+    const maintainer = await barnacle(issueContext({ labels: ["r: support"], label: "r: support", login: "kaylarodda" }), { maintainers: ["kaylarodda"] });
+    const member = await barnacle(issueContext({ labels: ["r: support"], label: "r: support", association: "MEMBER", login: "someone" }));
+    expect([...maintainer.update, ...member.update]).toEqual([]);
+  });
+
+  it("lets a repo override one rule without copying the rest", async () => {
+    const calls = await barnacle(issueContext({ labels: ["r: support"], label: "r: support" }), {
+      override: { rules: [{ label: "r: support", enabled: false }] },
+    });
+    expect(calls.update).toEqual([]);
+  });
+
+  it("merges repo overrides by label", () => {
+    const merged = mergeConfig(
+      { activePrLimit: 20, rules: [{ label: "a", close: true }, { label: "b", close: true }] },
+      { activePrLimit: 5, rules: [{ label: "b", enabled: false }] },
+    );
+    expect(merged.activePrLimit).toBe(5);
+    expect(merged.rules).toEqual([{ label: "a", close: true }, { label: "b", close: true, enabled: false }]);
+  });
+});
