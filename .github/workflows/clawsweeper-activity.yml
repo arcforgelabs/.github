@@ -31,7 +31,18 @@ jobs:
           import os
           import re
           import urllib.request
+          import urllib.parse
           from pathlib import Path
+
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  raise ValueError('Hook redirects are forbidden')
+
+          def hook_request(url, token, payload):
+              target = urllib.parse.urlsplit(url)
+              if target.scheme != 'https' or target.hostname != 'team.arcforge.au' or target.port not in (None, 443) or target.username is not None or target.password is not None or target.path != '/hooks/agent' or target.query or target.fragment:
+                  raise ValueError('Unexpected hook destination')
+              return urllib.request.Request(url, data=json.dumps(payload).encode(), method='POST', headers={'Authorization':'Bearer '+token,'Content-Type':'application/json','Idempotency-Key':payload['idempotencyKey']})
 
           def review_request(event_name, event, repository, run_id):
               if not re.fullmatch(r'arcforgelabs/[A-Za-z0-9_.-]+', repository):
@@ -82,9 +93,9 @@ jobs:
           if payload is None:
               print('No review requested for this event')
               raise SystemExit(0)
-          request = urllib.request.Request(os.environ['HOOK_URL'], data=json.dumps(payload).encode(), method='POST', headers={'Authorization':'Bearer '+os.environ['HOOK_TOKEN'],'Content-Type':'application/json','Idempotency-Key':payload['idempotencyKey']})
+          request = hook_request(os.environ['HOOK_URL'], os.environ['HOOK_TOKEN'], payload)
           try:
-              with urllib.request.urlopen(request, timeout=75) as response:
+              with urllib.request.build_opener(NoRedirect()).open(request, timeout=75) as response:
                   result = json.load(response)
           except Exception as error:
               # Do not print the hook URL/token or server response body.

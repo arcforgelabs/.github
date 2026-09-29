@@ -70,6 +70,8 @@ receipt verification belong to Forge Tools and the receiving repository.
 
 Activity from private repos stays in that repository's Actions run. A stable
 idempotency key prevents delivery retries from repeating the same request.
+The hook destination is restricted to the existing HTTPS gateway endpoint and all
+redirects are rejected, so a redirect cannot forward the bearer token.
 No timer or scheduled work is introduced. Validate the event adapter with
 `python3 -m unittest discover -s test -p 'test_review_events.py'`.
 
