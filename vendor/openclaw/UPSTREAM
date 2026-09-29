@@ -1,3 +1,3 @@
 repo=openclaw/openclaw
 sha=5ff5fb278348bb6d2280bfbfb7e5cd3a66e74712
-files=scripts/github/barnacle-auto-response.mjs scripts/github/real-behavior-proof-policy.mjs scripts/lib/regexp.mjs scripts/lib/bounded-response.mjs scripts/lib/timeout-error.mjs test/scripts/barnacle-auto-response.test.ts .github/pull_request_template.md .github/workflows/auto-response.yml scripts/github/labeler-label-cap.mjs .github/workflows/labeler.yml
+files=scripts/github/barnacle-auto-response.mjs scripts/github/real-behavior-proof-policy.mjs scripts/lib/regexp.mjs scripts/lib/bounded-response.mjs scripts/lib/timeout-error.mjs test/scripts/barnacle-auto-response.test.ts .github/pull_request_template.md .github/workflows/auto-response.yml scripts/github/labeler-label-cap.mjs .github/workflows/labeler.yml .github/workflows/maintainer-command-reactions.yml LICENSE

@@ -1,0 +1,13 @@
+name: Maintainer Command Reactions
+
+on:
+  issue_comment:
+    types: [created, edited]
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  react:
+    uses: arcforgelabs/.github/.github/workflows/maintainer-command-reactions.yml@AUTOMATION_SHA
