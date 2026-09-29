@@ -1,0 +1,82 @@
+# Feeds GitHub issue/PR events to the `clawsweeper` agent on the Arc Haven
+# gateway through its /hooks/agent endpoint, using upstream ClawSweeper's own
+# notifier (`repair:notify-github-activity`, openclaw/clawsweeper
+# docs/openclaw-event-hooks.md) unchanged. Upstream runs it inside the public
+# ClawSweeper repo; this runs it in the calling private repo so activity from
+# private repos never lands in public Actions logs.
+# Secrets (org): CLAWSWEEPER_OPENCLAW_HOOK_URL, CLAWSWEEPER_OPENCLAW_HOOK_TOKEN.
+name: ClawSweeper activity
+
+on:
+  workflow_call:
+    secrets:
+      CLAWSWEEPER_OPENCLAW_HOOK_URL:
+        required: true
+      CLAWSWEEPER_OPENCLAW_HOOK_TOKEN:
+        required: true
+
+permissions: {}
+
+jobs:
+  notify:
+    # Only events that should start a review. Everything else is filtered by
+    # the caller's triggers or here, before any minutes are spent.
+    if: >-
+      ${{
+        !endsWith(github.actor, '[bot]') &&
+        (
+          (github.event_name == 'issues' && contains(fromJSON('["opened","reopened"]'), github.event.action)) ||
+          (github.event_name == 'pull_request_target' && contains(fromJSON('["opened","reopened","ready_for_review"]'), github.event.action) && !github.event.pull_request.draft)
+        )
+      }}
+    concurrency:
+      group: clawsweeper-activity-${{ github.repository }}-${{ github.event.issue.number || github.event.pull_request.number }}
+      cancel-in-progress: true
+    permissions: {}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      # arcforgelabs/clawsweeper (upstream + config only), pinned.
+      CLAWSWEEPER_SHA: 73186a07eb4902f878c6c118dda7ca81fedf0405
+      PNPM_VERSION: 12.4.1
+    steps:
+      # Public upstream code only; the caller's PR code is never checked out.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: arcforgelabs/clawsweeper
+          ref: ${{ env.CLAWSWEEPER_SHA }}
+          path: clawsweeper
+          filter: blob:none
+          persist-credentials: false
+      # The steps below mirror clawsweeper/.github/actions/setup-pnpm with
+      # SHA-pinned actions, which our org policy requires.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+      - name: Enable pinned pnpm
+        run: |
+          set -euo pipefail
+          corepack enable
+          corepack prepare "pnpm@${PNPM_VERSION}" --activate
+          echo "PNPM_STORE=$(pnpm store path --silent)" >> "$GITHUB_ENV"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ${{ env.PNPM_STORE }}
+          key: ${{ runner.os }}-pnpm-${{ env.PNPM_VERSION }}-${{ hashFiles('clawsweeper/pnpm-lock.yaml', 'clawsweeper/pnpm-workspace.yaml') }}
+      - name: Install and build the notifier
+        working-directory: clawsweeper
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile
+          pnpm run build:repair
+      - name: Feed activity to OpenClaw
+        working-directory: clawsweeper
+        env:
+          CLAWSWEEPER_OPENCLAW_HOOK_URL: ${{ secrets.CLAWSWEEPER_OPENCLAW_HOOK_URL }}
+          CLAWSWEEPER_OPENCLAW_HOOK_TOKEN: ${{ secrets.CLAWSWEEPER_OPENCLAW_HOOK_TOKEN }}
+          CLAWSWEEPER_OPENCLAW_AGENT_ID: clawsweeper
+          # Upstream requires a delivery target; Arc Forge does not deliver to
+          # a channel (deliver stays false). The agent's AGENTS.md says what a
+          # hook event means for it.
+          CLAWSWEEPER_DISCORD_TARGET: none
+        run: pnpm run repair:notify-github-activity -- --write-report

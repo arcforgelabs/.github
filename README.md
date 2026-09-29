@@ -50,6 +50,24 @@ team.
   `{"rules":[{"label":"r: support","enabled":false}]}`. `{"enabled": false}` switches Barnacle off
   for that repo.
 
+## ClawSweeper activity
+
+`.github/workflows/clawsweeper-activity.yml` sends new issues and ready PRs to the `clawsweeper` agent
+on the Arc Haven gateway (`POST team.arcforge.au/hooks/agent`). It uses upstream ClawSweeper's
+notifier (`repair:notify-github-activity`) unchanged, from `arcforgelabs/clawsweeper` at a pinned
+SHA.
+
+Upstream runs the notifier inside its public ClawSweeper repo. Ours runs in each calling repo, so
+activity from private repos never reaches public Actions logs. The agent hands each item to its own
+session, `agent:clawsweeper:gh-<repo>-<n>`, and returns immediately, so each job lasts only a couple
+of minutes.
+
+- **Secrets (org):** `CLAWSWEEPER_OPENCLAW_HOOK_URL` and `CLAWSWEEPER_OPENCLAW_HOOK_TOKEN`. The
+  token is in Bitwarden as "Arc Haven gateway hooks token (clawsweeper)".
+- **Gateway:** the `hooks` block allows only `allowedAgentIds: ["clawsweeper"]`.
+- **Cloudflare Access:** bypass applies only to `team.arcforge.au/hooks/agent`.
+- **Caller:** `templates/clawsweeper-activity-caller.yml`.
+
 ## Updating from upstream
 
 ```bash
