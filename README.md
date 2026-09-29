@@ -50,6 +50,39 @@ team.
   `{"rules":[{"label":"r: support","enabled":false}]}`. `{"enabled": false}` switches Barnacle off
   for that repo.
 
+## Labeler and maintainer command reactions
+
+Copy `templates/labeler-caller.yml` and `templates/maintainer-command-reactions-caller.yml`
+into a repository's workflows, replacing `AUTOMATION_SHA` with the reviewed commit of this repo.
+Labeler reuses the Barnacle App secret and variable. Reactions use the caller's `GITHUB_TOKEN`.
+
+Labeler applies upstream's size thresholds (<50 / <200 / <500 / <1000 / XL), maintainer-team
+membership, and beta-blocker title rules. Upstream excludes `docs/`, `pnpm-lock.yaml`, `yarn.lock`
+and `bun.lockb` from size; other lockfiles still count. Optional area rules live in the caller's
+`.github/labeler.yml`; a missing map skips only area labels. Manual dispatch backfills size,
+maintainer and beta-blocker labels on open PRs (upstream does not backfill area labels).
+
+The reusable Labeler preserves the vendored scripts. Adaptations are the workflow-call interface,
+Arc App identity, a checkout of this automation repo at `job.workflow_sha`, the vendored helper
+path, optional area-map loading from the caller's trusted base SHA, repository-qualified
+concurrency, timeouts, and backfill input transport. One upstream bug is fixed: backfill keeps page size constant
+so a limit such as 75 with 50 per page does not process the same PRs twice. The PR-cap step is excluded because Barnacle
+already owns it. No pull-request code is checked out or executed. Reaction logic and role checks
+are unchanged; only the reusable trigger, concurrency namespace and timeout differ.
+
+Command reactions acknowledge `/autoclose`, `/clawsweeper autoclose`, `/clawsweeper automerge`,
+`/merge`, `/land`, and `/landpr` from users with write/maintain/admin permission. Only autoclose
+commands acknowledge issue comments; the rest require a PR. They do not execute commands or
+prove another worker has accepted them. `MAINTAINER_COMMAND_REACTIONS` can override the list.
+
+## Compute decision (2026-09-29)
+
+Use GitHub Actions for repository automation and CI, and Linode for disposable Crabbox test
+machines. No Hetzner, Blacksmith or OpenBao dependency is needed. Start with direct Linode CLI
+leases without a coordinator or hydrated self-hosted Actions runner. Provider writes remain on
+the approved gateway egress. Test-box cleanup and secretless execution must be verified before
+rollout; the bot suite's later Stale/security/Mantis stages retain their dry-run and proof gates.
+
 ## ClawSweeper activity
 
 `.github/workflows/clawsweeper-activity.yml` sends new issues and ready PRs to the `clawsweeper` agent
