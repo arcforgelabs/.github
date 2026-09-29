@@ -12,6 +12,12 @@ permissions: {}
 
 jobs:
   notify:
+    # Ignore routine/bot comments before allocating a runner. Python validates the
+    # exact command and event again before any credential is used.
+    if: >-
+      ${{ github.event_name != 'issue_comment' ||
+          (contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
+           startsWith(github.event.comment.body, '@clawsweeper')) }}
     # No repository checkout and no pull-request code executes with the hook token.
     runs-on: ubuntu-24.04
     timeout-minutes: 3
