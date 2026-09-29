@@ -52,9 +52,81 @@ class ReviewEvents(unittest.TestCase):
         self.assertRaises(ValueError,NS['NoRedirect']().redirect_request,None,None,302,'Redirect',{},'https://evil.example/')
 
     def test_admission_acknowledgement_is_not_completion(self):
-        validate=NS['assert_hook_completed']
-        validate({'ok':True,'completion':{'status':'ok','replyDisposition':'silent'}})
-        for result in [None,{}, {'ok':False}, {'ok':True}, {'ok':True,'completion':{'status':'error'}}, {'ok':True,'completion':{'status':'timeout'}}]:
-            self.assertRaises(ValueError,validate,result)
+        outcome=NS['dispatch_outcome']
+        legacy={'ok':True,'runId':'11111111-1111-1111-1111-111111111111','completion':{'status':'ok','replyDisposition':'silent','delivered':False,'deliveryAttempted':True,'deliverySuppressionReason':'silent'}}
+        got=outcome(legacy)
+        self.assertEqual(got['outcome'],'parent_dispatch')
+        self.assertIsNone(got['warning'])
+        self.assertEqual(outcome({'ok':True,'completion':{'status':'ok','replyDisposition':'silent'}})['outcome'],'parent_dispatch')
+        self.assertNotIn('acceptedDelegations', legacy['completion'])
+        for result in [None,{}, {'ok':False}, {'ok':True}, {'ok':True,'completion':{'status':'error'}}, {'ok':True,'completion':{'status':'timeout'}}, {'ok':True,'completion':{'status':'skipped'}}]:
+            self.assertRaises(ValueError,outcome,result)
+
+    def test_final_child_receipt_acknowledges_dispatch(self):
+        outcome=NS['dispatch_outcome']
+        final={'ok':True,'runId':'parent','completion':{'status':'error','replyDisposition':'empty','acceptedDelegations':[{'runId':'child','expectsCompletionMessage':False}]}}
+        got=outcome(final)
+        self.assertEqual(got['outcome'],'child_acceptance')
+        self.assertEqual(got['warning'],'Gateway parent completion status is error')
+        self.assertIn('accepted child delegation', got['message'])
+        self.assertNotIn('completed', got['message'])
+        quiet=copy.deepcopy(final)
+        del quiet['completion']['acceptedDelegations'][0]['expectsCompletionMessage']
+        self.assertEqual(outcome(quiet)['outcome'],'child_acceptance')
+        obliged=copy.deepcopy(final)
+        obliged['completion']['acceptedDelegations'][0]['expectsCompletionMessage']=True
+        self.assertEqual(outcome(obliged)['outcome'],'child_acceptance')
+
+    def test_parent_error_needs_a_valid_child_receipt(self):
+        outcome=NS['dispatch_outcome']
+        base={'ok':True,'runId':'parent','completion':{'status':'error','replyDisposition':'empty'}}
+        missing=copy.deepcopy(base)
+        empty=copy.deepcopy(base); empty['completion']['acceptedDelegations']=[]
+        malformed=copy.deepcopy(base); malformed['completion']['acceptedDelegations']='child'
+        broken=copy.deepcopy(base); broken['completion']='error'
+        blank=copy.deepcopy(base); blank['completion']['acceptedDelegations']=[{'runId':''}]
+        huge=copy.deepcopy(base); huge['completion']['acceptedDelegations']=[{'runId':'c' * (NS['MAX_RUN_ID_LENGTH'] + 1)}]
+        crowded=copy.deepcopy(base); crowded['completion']['acceptedDelegations']=[{'runId':'child-%02d' % n} for n in range(NS['MAX_ACCEPTED_DELEGATIONS'] + 1)]
+        alien=copy.deepcopy(base); alien['completion']['acceptedDelegations']=[{'runId':'child'}, None]
+        poisoned=copy.deepcopy(base); poisoned['completion']['status']='ok'; poisoned['completion']['acceptedDelegations']=[{'runId':'parent'}]
+        for result in [missing, empty, malformed, broken, blank, huge, crowded, alien, poisoned, {'ok':True,'completion':{'status':'error','acceptedDelegations':[{'runId':'child'}]}}]:
+            self.assertRaises(ValueError,outcome,result)
+        held=copy.deepcopy(base); held['completion']['acceptedDelegations']=[{'runId':'child'}]
+        self.assertEqual(outcome(held)['outcome'],'child_acceptance')
+        bounded=copy.deepcopy(base)
+        bounded['runId']='p' * NS['MAX_RUN_ID_LENGTH']
+        bounded['completion']['acceptedDelegations']=[{'runId':'c%d' % n} for n in range(NS['MAX_ACCEPTED_DELEGATIONS'])]
+        bounded['completion']['acceptedDelegations'][0]['runId']='c' * NS['MAX_RUN_ID_LENGTH']
+        self.assertEqual(outcome(bounded)['outcome'],'child_acceptance')
+
+    def test_rejected_parent_equal_boolean_and_unknown_status_fail(self):
+        outcome=NS['dispatch_outcome']
+        def receipt(child='child', flag=False, status='error', ok=True, parent='parent'):
+            body={'ok':ok,'runId':parent,'completion':{'status':status,'replyDisposition':'empty','acceptedDelegations':[{'runId':child,'expectsCompletionMessage':flag}]}}
+            return body
+        self.assertRaises(ValueError,outcome,receipt(ok=False))
+        self.assertRaises(ValueError,outcome,receipt(child='parent'))
+        for flag in ['false', 'true', 0, 1, None, 'no']:
+            self.assertRaises(ValueError,outcome,receipt(flag=flag))
+        for status in ['timeout', 'skipped', 'running', 'OK', '']:
+            self.assertRaises(ValueError,outcome,receipt(status=status))
+        self.assertEqual(outcome(receipt())['outcome'],'child_acceptance')
+
+    def test_outcome_text_excludes_response_secrets(self):
+        secret='private-session-key-SHOULD-NOT-LEAK'
+        output='model-output-SHOULD-NOT-LEAK'
+        parent='parent-run-SHOULD-NOT-LEAK'
+        child='child-run-SHOULD-NOT-LEAK'
+        payload={'ok':True,'runId':parent,'output':output,'sessionKey':secret,'completion':{'status':'error','replyDisposition':'empty','error':secret,'output':output,'acceptedDelegations':[{'runId':child,'expectsCompletionMessage':False,'childSessionKey':secret}]}}
+        got=NS['dispatch_outcome'](payload)
+        rendered=repr(got)
+        for hidden in [secret, output, parent, child]:
+            self.assertNotIn(hidden, rendered)
+        printer=TEXT.split('outcome = dispatch_outcome(result)',1)[1]
+        self.assertIn("print('::warning::' + outcome['warning'])", printer)
+        self.assertNotIn('print(result', printer)
+        self.assertNotIn('acceptedDelegations', printer)
+        self.assertNotIn('sessionKey', printer)
+        self.assertNotIn(secret, printer)
 
 if __name__=='__main__':unittest.main()
