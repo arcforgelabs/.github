@@ -3,6 +3,8 @@ name: ClawSweeper activity
 on:
   workflow_call:
     secrets:
+      CLAWSWEEPER_WEBHOOK_SECRET:
+        required: false
       CLAWSWEEPER_OPENCLAW_HOOK_URL:
         required: true
       CLAWSWEEPER_OPENCLAW_HOOK_TOKEN:
@@ -27,12 +29,16 @@ jobs:
     steps:
       - name: Request a review of the current item
         env:
+          DURABLE_QUEUE: ${{ vars.CLAWSWEEPER_DURABLE_QUEUE }}
+          QUEUE_SECRET: ${{ secrets.CLAWSWEEPER_WEBHOOK_SECRET }}
           HOOK_URL: ${{ secrets.CLAWSWEEPER_OPENCLAW_HOOK_URL }}
           HOOK_TOKEN: ${{ secrets.CLAWSWEEPER_OPENCLAW_HOOK_TOKEN }}
         run: |
           python3 - <<'PYTHON'
           # review-event-adapter:start
           import hashlib
+          import hmac
+          import time
           import json
           import os
           import re
@@ -144,6 +150,37 @@ jobs:
           if payload is None:
               print('No review requested for this event')
               raise SystemExit(0)
+          # Reuse the validated event filter above. Issues retain their advisory hook;
+          # PRs opt into the upstream durable queue without starting a chat session.
+          pr = event.get('pull_request')
+          issue_pr = event.get('issue', {}).get('pull_request')
+          if os.environ.get('DURABLE_QUEUE') == '1' and (pr or issue_pr):
+              secret = os.environ.get('QUEUE_SECRET')
+              if not secret:
+                  raise SystemExit('Durable queue credential is missing')
+              item = pr or event['issue']
+              decision = {'targetRepo': os.environ['GITHUB_REPOSITORY'],
+                  'targetBranch': (pr or {}).get('base', {}).get('ref') or event['repository']['default_branch'],
+                  'itemNumber': item['number'], 'itemKind':'pull_request', 'sourceEvent':'pull_request',
+                  'sourceAction': event['action'] if pr else 'comment_review', 'supersedesInProgress':True}
+              if pr:
+                  decision.update(sourceHeadSha=pr['head']['sha'],sourceBaseSha=pr['base']['sha'],sourceIsDraft=pr['draft'],sourceUpdatedAt=pr['updated_at'])
+              data = json.dumps({'delivery_id':payload['idempotencyKey'], 'decision':decision},separators=(',',':')).encode()
+              signed = hmac.new(secret.encode(),data,hashlib.sha256).hexdigest()
+              for attempt in range(4):
+                  req = urllib.request.Request('https://clawsweeper.arcforge.au/internal/exact-review/enqueue',data=data,
+                      headers={'Content-Type':'application/json','x-clawsweeper-exact-review-signature':'sha256='+signed},method='POST')
+                  try:
+                      with urllib.request.build_opener(NoRedirect()).open(req,timeout=30) as response:
+                          receipt=json.load(response)
+                      if receipt.get('ok') is not True:
+                          raise ValueError('Queue did not acknowledge persistence')
+                      print('Review persisted in the durable queue')
+                      raise SystemExit(0)
+                  except (urllib.error.URLError, TimeoutError):
+                      if attempt == 3:
+                          raise SystemExit('Durable queue intake unavailable after four attempts') from None
+                      time.sleep(2**attempt)
           request = hook_request(os.environ['HOOK_URL'], os.environ['HOOK_TOKEN'], payload)
           try:
               with urllib.request.build_opener(NoRedirect()).open(request, timeout=75) as response:
