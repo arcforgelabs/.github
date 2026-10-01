@@ -169,7 +169,7 @@ jobs:
               signed = hmac.new(secret.encode(),data,hashlib.sha256).hexdigest()
               for attempt in range(4):
                   req = urllib.request.Request('https://clawsweeper.arcforge.au/internal/exact-review/enqueue',data=data,
-                      headers={'Content-Type':'application/json','x-clawsweeper-exact-review-signature':'sha256='+signed},method='POST')
+                      headers={'User-Agent':'ArcForge-ClawSweeper/1.0','Content-Type':'application/json','x-clawsweeper-exact-review-signature':'sha256='+signed},method='POST')
                   try:
                       with urllib.request.build_opener(NoRedirect()).open(req,timeout=30) as response:
                           receipt=json.load(response)

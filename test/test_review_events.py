@@ -174,6 +174,7 @@ class ReviewEvents(unittest.TestCase):
                 opener.return_value.open.assert_called_once()
                 req=opener.return_value.open.call_args.args[0]
                 self.assertEqual(req.full_url,'https://clawsweeper.arcforge.au/internal/exact-review/enqueue')
+                self.assertEqual(req.get_header('User-agent'),'ArcForge-ClawSweeper/1.0')
                 self.assertNotIn(b'evil',req.data)
                 self.assertEqual(req.get_header('X-clawsweeper-exact-review-signature'),'sha256='+hmac.new(b'test-secret',req.data,hashlib.sha256).hexdigest())
                 self.assertEqual(json.loads(req.data)['decision']['sourceHeadSha'],'a'*40)
