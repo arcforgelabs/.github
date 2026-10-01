@@ -85,6 +85,15 @@ rollout; the bot suite's later Stale/security/Mantis stages retain their dry-run
 
 ## ClawSweeper activity
 
+Durable PR intake is opt-in with repository variable
+`CLAWSWEEPER_DURABLE_QUEUE=1`. Before enabling it, enroll the repository in the
+queue deployment's explicit allowlist, grant it access to the organization
+`CLAWSWEEPER_WEBHOOK_SECRET`, and update its caller to the current template and
+shared-workflow commit. Existing callers pin older commits and pass secrets
+explicitly, so updating this repository alone does not migrate them. Keep the
+hook secrets for issue advisories. Enable only after a complete gateway canary;
+Field remains excluded. Queue acceptance confirms persistence, not approval.
+
 `.github/workflows/clawsweeper-activity.yml` sends issues and review requests to the
 `clawsweeper` agent on Arc Haven (`POST team.arcforge.au/hooks/agent`). The adapter
 runs without a checkout and sends only the repository, item number and event type.

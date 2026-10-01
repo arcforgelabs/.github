@@ -159,4 +159,23 @@ class ReviewEvents(unittest.TestCase):
                     self.assertIn('acknowledged from an accepted child delegation',logged)
                     self.assertNotIn('review completed',logged)
 
+    def test_durable_pr_intake_signs_only_metadata_and_never_calls_gateway(self):
+        import hashlib,hmac
+        script=textwrap.dedent(TEXT.split("python3 - <<'PYTHON'\n",1)[1].rsplit('PYTHON',1)[0])
+        with tempfile.TemporaryDirectory() as directory:
+            event=self.event();event['repository']['default_branch']='main'
+            event['pull_request'].update(head={'sha':'a'*40},base={'sha':'b'*40,'ref':'main'},updated_at='2026-09-30T00:00:00Z')
+            file=Path(directory)/'event.json';file.write_text(json.dumps(event))
+            env={'GITHUB_EVENT_PATH':str(file),'GITHUB_EVENT_NAME':'pull_request_target','GITHUB_REPOSITORY':REPO,'GITHUB_RUN_ID':'42','DURABLE_QUEUE':'1','QUEUE_SECRET':'test-secret'}
+            with patch.dict(os.environ,env),patch('urllib.request.build_opener') as opener,contextlib.redirect_stdout(io.StringIO()):
+                opener.return_value.open.return_value=io.BytesIO(b'{"ok":true}')
+                with self.assertRaises(SystemExit) as ended: exec(compile(script,'<workflow>','exec'),{})
+                self.assertEqual(ended.exception.code,0)
+                opener.return_value.open.assert_called_once()
+                req=opener.return_value.open.call_args.args[0]
+                self.assertEqual(req.full_url,'https://clawsweeper.arcforge.au/internal/exact-review/enqueue')
+                self.assertNotIn(b'evil',req.data)
+                self.assertEqual(req.get_header('X-clawsweeper-exact-review-signature'),'sha256='+hmac.new(b'test-secret',req.data,hashlib.sha256).hexdigest())
+                self.assertEqual(json.loads(req.data)['decision']['sourceHeadSha'],'a'*40)
+
 if __name__=='__main__':unittest.main()
