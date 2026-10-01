@@ -22,6 +22,12 @@
       "message": "Thanks for the contribution! New skills belong in their own skill package rather than this repository, so I'm closing this out."
     },
     {
+      "label": "r: not-in-vision",
+      "close": true,
+      "closeMaintainerAuthored": true,
+      "message": "Closing this because it doesn't fit this repository's `VISION.md`: its scope, its order of work, or its \"What we will not merge\" list. That includes work started before the vision changed.\n\nIf you think it does fit, or that the vision should change, comment with the line you think it serves."
+    },
+    {
       "label": "r: support",
       "close": true,
       "message": "This looks like a support request rather than a bug or change for this repository. Please contact Arc Forge support so we can help with your account or agents directly."
@@ -147,6 +153,10 @@
     "r: moltbook": {
       "color": "B60205",
       "description": "Auto-close and lock: Moltbook is off-topic here."
+    },
+    "r: not-in-vision": {
+      "color": "B60205",
+      "description": "Close: doesn't fit this repo's VISION.md (applies to team items too)."
     }
   }
 }

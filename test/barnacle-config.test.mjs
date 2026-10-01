@@ -10,7 +10,7 @@ function notFound() {
   return error;
 }
 
-function mockGithub({ maintainers = [], override } = {}) {
+function mockGithub({ maintainers = [], override, senderRole = "read" } = {}) {
   const calls = { addLabels: [], createComment: [], lock: [], removeLabel: [], update: [] };
   const github = {
     paginate: async () => [],
@@ -27,7 +27,10 @@ function mockGithub({ maintainers = [], override } = {}) {
       },
       pulls: { listFiles: async () => [] },
       repos: {
-        getCollaboratorPermissionLevel: async () => ({ data: { permission: "read", role_name: "read" } }),
+        getCollaboratorPermissionLevel: async ({ username }) =>
+          username === "IAMSamuelRodda"
+            ? { data: { permission: senderRole, role_name: senderRole } }
+            : { data: { permission: "read", role_name: "read" } },
         getContent: async () => {
           if (!override) throw notFound();
           return { data: { content: Buffer.from(JSON.stringify(override)).toString("base64") } };
@@ -114,5 +117,52 @@ describe("Arc Forge Barnacle config", () => {
     );
     expect(merged.activePrLimit).toBe(5);
     expect(merged.rules).toEqual([{ label: "a", close: true }, { label: "b", close: true, enabled: false }]);
+  });
+
+  describe("r: not-in-vision", () => {
+    const visionLabel = (extra = {}) =>
+      issueContext({ labels: ["r: not-in-vision"], label: "r: not-in-vision", ...extra });
+
+    it("closes the team's own item when someone with write access applies it", async () => {
+      const calls = await barnacle(visionLabel({ association: "OWNER", login: "IAMSamuelRodda" }), { senderRole: "admin" });
+      expect(calls.createComment).toHaveLength(1);
+      expect(calls.createComment[0].body).toContain("VISION.md");
+      expect(calls.update).toEqual([expect.objectContaining({ issue_number: 7, state: "closed", state_reason: "not_planned" })]);
+    });
+
+    it("closes an outside item once, not twice", async () => {
+      const calls = await barnacle(visionLabel(), { senderRole: "write" });
+      expect(calls.createComment).toHaveLength(1);
+      expect(calls.update).toHaveLength(1);
+    });
+
+    it("does nothing when the label was applied without write access", async () => {
+      const calls = await barnacle(visionLabel({ association: "MEMBER" }), { senderRole: "read" });
+      expect(calls.createComment).toEqual([]);
+      expect(calls.update).toEqual([]);
+    });
+
+    it("does nothing when a bot applied the label", async () => {
+      const context = visionLabel({ association: "OWNER" });
+      context.payload.sender = { login: "clawsweeper[bot]", type: "Bot" };
+      const calls = await barnacle(context, { senderRole: "admin" });
+      expect(calls.update).toEqual([]);
+    });
+
+    it("leaves other close rules exempt for the team, as upstream", async () => {
+      const calls = await barnacle(
+        issueContext({ labels: ["r: support"], label: "r: support", association: "OWNER" }),
+        { senderRole: "admin" },
+      );
+      expect(calls.update).toEqual([]);
+    });
+
+    it("closes pull requests without an issue state reason", async () => {
+      const context = visionLabel();
+      context.payload.pull_request = { ...context.payload.issue, number: 9 };
+      delete context.payload.issue;
+      const calls = await barnacle(context, { senderRole: "maintain" });
+      expect(calls.update).toEqual([{ owner: "arcforgelabs", repo: "arc-forge-deck", issue_number: 9, state: "closed" }]);
+    });
   });
 });
