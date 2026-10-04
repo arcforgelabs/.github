@@ -107,6 +107,27 @@ describe("Arc Forge Barnacle config", () => {
     expect(calls.update).toEqual([]);
   });
 
+  // A repo override's stateReason reaches GitHub as state_reason (arcforgelabs/dictate#138).
+  const notPlannedOverride = { rules: [{ label: "r: not-in-vision", close: true, stateReason: "not_planned", message: "Out of vision." }] };
+
+  it("passes a repo override rule's stateReason through as state_reason", async () => {
+    const calls = await barnacle(issueContext({ labels: ["r: not-in-vision"], label: "r: not-in-vision" }), { override: notPlannedOverride });
+    expect(calls.createComment.map((c) => c.body)).toEqual(["Out of vision."]);
+    expect(calls.update).toEqual([
+      { owner: "arcforgelabs", repo: "arc-forge-deck", issue_number: 7, state: "closed", state_reason: "not_planned" },
+    ]);
+  });
+
+  it("sends the same close for an outside pull request", async () => {
+    const context = issueContext({ labels: ["r: not-in-vision"], label: "r: not-in-vision" });
+    const { issue } = context.payload;
+    context.payload = { ...context.payload, issue: undefined, pull_request: { ...issue, head: { ref: "feature" } } };
+    const calls = await barnacle(context, { override: notPlannedOverride });
+    expect(calls.update).toEqual([
+      { owner: "arcforgelabs", repo: "arc-forge-deck", issue_number: 7, state: "closed", state_reason: "not_planned" },
+    ]);
+  });
+
   it("merges repo overrides by label", () => {
     const merged = mergeConfig(
       { activePrLimit: 20, rules: [{ label: "a", close: true }, { label: "b", close: true }] },
