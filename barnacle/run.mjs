@@ -52,9 +52,55 @@ export async function runPrCap({ github, context, core }) {
   await applyPrCap({ github, context, core }, config);
 }
 
+const WRITE_ROLES = new Set(["admin", "maintain", "write"]);
+
+async function senderCanTriage(github, context) {
+  const login = context.payload.sender?.login;
+  if (!login || context.payload.sender?.type === "Bot" || login.endsWith("[bot]")) return false;
+  try {
+    const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+      username: login,
+    });
+    return WRITE_ROLES.has(data.role_name) || WRITE_ROLES.has(data.permission);
+  } catch (error) {
+    if (error?.status === 404) return false;
+    throw error;
+  }
+}
+
+// Upstream Barnacle skips every rule on maintainer-authored items, so a
+// maintainer could not close the team's own stale work with a label. A rule
+// marked `closeMaintainerAuthored` (r: not-in-vision) closes any item, but only
+// on the `labeled` event for its label and only when someone with write access
+// applied it. Returns true when it handled the event.
+export async function applyMaintainerAuthoredClose({ github, context, core }, config) {
+  const target = context.payload.issue ?? context.payload.pull_request;
+  if (!target || context.payload.action !== "labeled") return false;
+  const rule = (config.rules ?? []).find(
+    (item) => item.enabled !== false && item.close && item.closeMaintainerAuthored && item.label === context.payload.label?.name,
+  );
+  if (!rule) return false;
+  if (!(await senderCanTriage(github, context))) {
+    core.info(`Not closing #${target.number}: ${rule.label} was not applied by someone with write access.`);
+    return false;
+  }
+  if (target.state === "closed") return true;
+  const issue = { owner: context.repo.owner, repo: context.repo.repo, issue_number: target.number };
+  await github.rest.issues.createComment({ ...issue, body: rule.message });
+  await github.rest.issues.update({
+    ...issue,
+    state: "closed",
+    ...(context.payload.issue && !context.payload.issue.pull_request ? { state_reason: "not_planned" } : {}),
+  });
+  return true;
+}
+
 export async function run({ github, context, core }) {
   const config = await loadConfig(github, context, core);
   if (config.enabled === false) return;
   configureBarnacle({ linkedReferenceRepo: `${context.repo.owner}/${context.repo.repo}`, ...config });
+  if (await applyMaintainerAuthoredClose({ github, context, core }, config)) return;
   await runBarnacleAutoResponse({ github, context, core });
 }

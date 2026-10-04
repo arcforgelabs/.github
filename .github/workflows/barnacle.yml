@@ -15,10 +15,15 @@ permissions: {}
 jobs:
   auto-response:
     # Upstream's gate: skip members/collaborators, bot comments, no-op edits,
-    # and ClawSweeper's own label events.
+    # and ClawSweeper's own label events. Arc Forge exception: the
+    # r: not-in-vision label event always runs, so run.mjs can close team-authored
+    # off-vision work (it still checks the labeller has write access).
     if: >-
       ${{ (
-        !contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.issue.author_association || github.event.pull_request.author_association) &&
+        (
+          !contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.issue.author_association || github.event.pull_request.author_association) ||
+          (github.event.action == 'labeled' && github.event.label.name == 'r: not-in-vision')
+        ) &&
         (github.event_name != 'issue_comment' || github.event.comment.user.type != 'Bot') &&
         (github.event.action != 'edited' || !github.event.changes ||
           github.event.changes.title || github.event.changes.body || github.event.changes.base) &&
