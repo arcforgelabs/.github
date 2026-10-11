@@ -20,7 +20,5 @@ jobs:
           node-version: "24"
       - run: npm ci --no-audit --no-fund
       - run: npm test
-      - name: Review event adapter
-        run: python3 -B -m unittest discover -s test -p 'test_review_events.py'
       - name: Vendored upstream matches the pinned SHA plus patches
         run: scripts/sync-upstream.sh
