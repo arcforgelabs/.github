@@ -85,64 +85,17 @@ rollout; the bot suite's later Stale/security/Mantis stages retain their dry-run
 
 ## ClawSweeper activity
 
-Durable PR intake is opt-in with repository variable
-`CLAWSWEEPER_DURABLE_QUEUE=1`. Before enabling it, enroll the repository in the
-queue deployment's explicit allowlist, grant it access to the organization
-`CLAWSWEEPER_WEBHOOK_SECRET`, and update its caller to the current template and
-shared-workflow commit. Existing callers pin older commits and pass secrets
-explicitly, so updating this repository alone does not migrate them. Keep the
-hook secrets for issue advisories. Enable only after a complete gateway canary;
-Field remains excluded. Queue acceptance confirms persistence, not approval.
-
-`.github/workflows/clawsweeper-activity.yml` sends issues and review requests to the
-`clawsweeper` agent on Arc Haven (`POST team.arcforge.au/hooks/agent`). The adapter
-runs without a checkout and sends only the repository, item number and event type.
-PR titles, bodies and arbitrary comment text never become gateway instructions.
-
-Ready PRs are reviewed on open, reopen, new commits and body edits. Owners, members
-and collaborators can request another review with an exact `@clawsweeper review`
-or `@clawsweeper re-review` comment. Draft PRs receive advisory reports; the gateway
-publisher independently refuses to approve drafts. Field is excluded.
-
-This replaces the upstream notifier for this integration because that notifier
-filters out synchronize/body-edit events needed to keep formal approvals current.
-The existing gateway agent delegates each item to its own session and returns.
-The event workflow neither merges nor approves. A green run acknowledges
-dispatch only. It does not mean the review finished or was published. Formal
-review publication still belongs to Forge Tools and the receiving repository.
-
-A short parent turn with `completion.status: ok` is one acknowledgement. It does
-not need `acceptedDelegations`. The other acknowledgement is an accepted child
-delegation: once the gateway runtime that emits `completion.acceptedDelegations`
-is activated, parent `completion.status: error` still acknowledges dispatch when
-that list has at least one valid child of the response's own parent run. The
-receipt is host provenance that the child was registered and its task ownership
-accepted, including when the parent fails afterward. It does not prove the child
-is running, completed, successful, or published. `expectsCompletionMessage: false`
-records that no child completion message is expected. It is not
-a failed dispatch. A missing `acceptedDelegations` field does not prove the hook
-had no side effects. Malformed, empty, overlong, or parent-matching run ids, an
-oversized receipt list, a non-boolean `expectsCompletionMessage`, an unknown
-completion status, or `ok: false` fail the job. HTTP 200 alone is not success. The workflow does not retry. When a
-receipt allows acceptance, parent status `error` is a workflow warning. The log
-does not include the response body, session keys, model output, or run ids.
-That receipt contract is not active on the running gateway yet. Until that
-runtime is activated, parent status `error` still fails the job.
-
-Activity from private repos stays in that repository's Actions run. The request
-carries a stable idempotency key. Gateway replay of that key is in-memory and
-bounded, and it does not survive a gateway restart. The hook destination is
-restricted to the existing HTTPS gateway endpoint and all redirects are
-rejected, so a redirect cannot forward the bearer token.
-Requests identify the integration as `ArcForge-ClawSweeper/1.0`; the gateway edge
-rejects Python's generic client identity. No timer or scheduled work is introduced. Validate the event adapter with
-`python3 -m unittest discover -s test -p 'test_review_events.py'`.
-
-- **Secrets (org):** `CLAWSWEEPER_OPENCLAW_HOOK_URL` and `CLAWSWEEPER_OPENCLAW_HOOK_TOKEN`. The
-  token is in Bitwarden as "Arc Haven gateway hooks token (clawsweeper)".
-- **Gateway:** the `hooks` block allows only `allowedAgentIds: ["clawsweeper"]`.
-- **Cloudflare Access:** bypass applies only to `team.arcforge.au/hooks/agent`.
-- **Caller:** `templates/clawsweeper-activity-caller.yml`.
+Retired 2026-10-12. ClawSweeper intake no longer runs as a GitHub Actions job:
+each issue, PR and comment event started a hosted job that billed at least one
+minute, about a third of the org's private allowance. An `arcforgelabs`
+organization webhook now delivers the same events to the ClawSweeper Worker,
+which applies the same filter: pull requests and maintainer
+`@clawsweeper review` commands on pull requests enter the durable review queue;
+opened issues and review commands on issues go to the `clawsweeper` agent on Arc
+Haven. Enrolled repositories are listed in `ARCFORGE_ACTIVITY_REPOSITORIES` in
+`dashboard/wrangler.arcforge.toml` in `arcforgelabs/clawsweeper`; the filter is
+`dashboard/arcforge-activity.ts` there, and failed deliveries can be redelivered
+from the organization webhook's settings.
 
 ## Updating from upstream
 
