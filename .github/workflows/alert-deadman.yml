@@ -1,0 +1,48 @@
+# Dead-man check for the Arc Forge alert pipeline (arcforgelabs/platform#7).
+# Runs on GitHub-hosted runners in this public repo, so it depends on none of
+# Arc Forge's hosts and uses no private Actions minutes. Logic and tests:
+# alert-deadman/check.mjs, test/alert-deadman.test.mjs.
+# Identity: the alert-receiver GitHub App (org variable ALERT_APP_ID, secret
+# ALERT_APP_PRIVATE_KEY), limited here to issues on arcforgelabs/alerts.
+# GitHub disables scheduled workflows in a public repo after 60 days without
+# activity; alert-receiver raises an urgent issue if this one stops running.
+name: Alert dead-man check
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: alert-deadman
+  cancel-in-progress: false
+
+jobs:
+  check:
+    if: ${{ github.repository == 'arcforgelabs/.github' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        id: app-token
+        with:
+          app-id: ${{ vars.ALERT_APP_ID }}
+          private-key: ${{ secrets.ALERT_APP_PRIVATE_KEY }}
+          owner: arcforgelabs
+          repositories: alerts
+          permission-issues: write
+          permission-metadata: read
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: alert-deadman
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const { checkDeadman } = await import(`${process.env.GITHUB_WORKSPACE}/alert-deadman/check.mjs`);
+            await checkDeadman({ github, owner: "arcforgelabs", repo: "alerts", log: core.info });

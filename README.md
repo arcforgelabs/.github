@@ -97,6 +97,27 @@ Haven. Enrolled repositories are listed in `ARCFORGE_ACTIVITY_REPOSITORIES` in
 `dashboard/arcforge-activity.ts` there, and failed deliveries can be redelivered
 from the organization webhook's settings.
 
+## Alert dead-man check
+
+`.github/workflows/alert-deadman.yml` runs every 10 minutes on GitHub-hosted runners. It is the
+alert pipeline's dead-man's switch ([platform#7](https://github.com/arcforgelabs/platform/issues/7)),
+so it runs here, off Arc Forge's hosts, and this public repo spends no private Actions minutes.
+Logic: `alert-deadman/check.mjs`. Tests: `test/alert-deadman.test.mjs`.
+
+- It reads the heartbeat comment that alert-receiver on `prod-forge-gateway` edits on every
+  Alertmanager Watchdog, in the private `arcforgelabs/alerts` repo.
+- Older than 20 minutes: it opens one urgent `alert-deadman` issue there, and closes it when the
+  heartbeat is fresh again.
+- Any urgent issue in `arcforgelabs/alerts` that is not on Arc's workboard after 15 minutes is
+  assigned to Samuel. That is the last resort when the gateway or Haven is down.
+- **Identity:** the alert-receiver GitHub App. Org variable `ALERT_APP_ID`, secret
+  `ALERT_APP_PRIVATE_KEY`. The workflow asks only for issues write on `arcforgelabs/alerts`.
+- The log prints counts and ages only, because this repo is public.
+- GitHub disables a public repo's scheduled workflows after 60 days without activity. alert-receiver
+  raises an urgent issue when this workflow has not run for an hour.
+
+Design and runbook: `docs/automation/alert-triage.md` in arcforgelabs/infrastructure.
+
 ## Updating from upstream
 
 ```bash
