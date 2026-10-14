@@ -8,7 +8,10 @@
 //      than STALE_MINUTES, and closes it when the heartbeat is fresh again;
 //   2. assigns Samuel to every urgent issue that is not on Arc's workboard after
 //      FALLBACK_MINUTES. That is the last resort when the gateway or Haven is
-//      down: GitHub's own notification reaches him.
+//      down: GitHub's own notification reaches him. Like Arc's heartbeat, it
+//      contacts him only from 08:00 to 21:00 Adelaide time; urgent items made at
+//      night wait for 08:00 (decision 2026-10-14). Opening the stale-heartbeat
+//      issue mentions nobody, so it happens at any hour.
 // This repo is public, so the log prints counts and ages only, never titles.
 
 export const HEARTBEAT_LABEL = "alert-heartbeat";
@@ -17,7 +20,18 @@ export const DEADMAN_LABEL = "alert-deadman";
 
 const minutes = (ms) => Math.floor(ms / 60000);
 
-export async function checkDeadman({ github, owner, repo, now = Date.now(), staleMinutes = 20, fallbackMinutes = 15, assignee = "IAMSamuelRodda", log = console.log }) {
+// True when `now` is inside contact hours, e.g. "08:00-21:00" in Australia/Adelaide.
+export function inContactHours(now, hours = "08:00-21:00", timeZone = "Australia/Adelaide") {
+  const [start, end] = hours.split("-").map((t) => t.split(":").map(Number)).map(([h, m]) => h * 60 + m);
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-AU", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+      .formatToParts(new Date(now)).map((p) => [p.type, p.value]),
+  );
+  const minute = Number(parts.hour) * 60 + Number(parts.minute);
+  return minute >= start && minute < end;
+}
+
+export async function checkDeadman({ github, owner, repo, now = Date.now(), staleMinutes = 20, fallbackMinutes = 15, assignee = "IAMSamuelRodda", contactHours = "08:00-21:00", contactTimeZone = "Australia/Adelaide", log = console.log }) {
   const issues = github.rest.issues;
   const listOpen = (labels) => github.paginate(issues.listForRepo, { owner, repo, state: "open", labels, per_page: 100 });
 
@@ -55,8 +69,12 @@ export async function checkDeadman({ github, owner, repo, now = Date.now(), stal
     log("closed the stale-heartbeat issue");
   }
 
-  // 2. Urgent issues that never reached the workboard.
+  // 2. Urgent issues that never reached the workboard, in contact hours only.
   let assigned = 0;
+  if (!inContactHours(now, contactHours, contactTimeZone)) {
+    log(`outside contact hours (${contactHours} ${contactTimeZone}); last-resort assignment waits`);
+    return { stale, assigned };
+  }
   for (const issue of await listOpen("urgent")) {
     const names = new Set((issue.labels ?? []).map((l) => (typeof l === "string" ? l : l.name)));
     if (names.has("on-workboard") || (issue.assignees ?? []).length) continue;

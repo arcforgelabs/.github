@@ -1,9 +1,9 @@
 // Dead-man check: stale heartbeat opens one urgent issue, fresh closes it,
 // and urgent issues off the workboard are assigned to Samuel after 15 minutes.
 import { describe, expect, it } from "vitest";
-import { checkDeadman, HEARTBEAT_MARKER } from "../alert-deadman/check.mjs";
+import { checkDeadman, HEARTBEAT_MARKER, inContactHours } from "../alert-deadman/check.mjs";
 
-const NOW = Date.parse("2026-10-14T12:00:00Z");
+const NOW = Date.parse("2026-10-14T02:00:00Z"); // 12:30 in Adelaide
 const ago = (min) => new Date(NOW - min * 60000).toISOString();
 
 function fakeGithub({ heartbeatAge, issues = [] }) {
@@ -22,7 +22,7 @@ function fakeGithub({ heartbeatAge, issues = [] }) {
   return { state, github: { rest, paginate: async (fn, params) => fn(params) } };
 }
 
-const run = (github) => checkDeadman({ github, owner: "arcforgelabs", repo: "alerts", now: NOW, log: () => {} });
+const run = (github, now = NOW) => checkDeadman({ github, owner: "arcforgelabs", repo: "alerts", now, log: () => {} });
 
 describe("alert dead-man check", () => {
   it("does nothing while the heartbeat is fresh", async () => {
@@ -63,5 +63,26 @@ describe("alert dead-man check", () => {
     });
     expect((await run(github)).assigned).toBe(1);
     expect(state.calls.find(([kind]) => kind === "assign")[1]).toMatchObject({ issue_number: 10, assignees: ["IAMSamuelRodda"] });
+  });
+
+  it("waits for 08:00 Adelaide before assigning, but still opens the stale issue at night", async () => {
+    const night = Date.parse("2026-10-14T13:00:00Z"); // 23:30 in Adelaide
+    const { github, state } = fakeGithub({
+      heartbeatAge: 45,
+      issues: [{ number: 10, labels: [{ name: "urgent" }], assignees: [], created_at: new Date(night - 3600000).toISOString() }],
+    });
+    expect(await run(github, night)).toEqual({ stale: true, assigned: 0 });
+    expect(state.calls.some(([kind]) => kind === "create")).toBe(true);
+    expect(state.calls.some(([kind]) => kind === "assign")).toBe(false);
+    const morning = Date.parse("2026-10-14T21:31:00Z"); // 08:01
+    // Both the old urgent issue and the stale-heartbeat issue are off the workboard.
+    expect((await run(github, morning)).assigned).toBe(2);
+  });
+
+  it("knows Adelaide contact hours across daylight saving", () => {
+    expect(inContactHours(Date.parse("2026-10-13T21:30:00Z"))).toBe(true); // 08:00 ACDT
+    expect(inContactHours(Date.parse("2026-10-13T21:29:00Z"))).toBe(false); // 07:59
+    expect(inContactHours(Date.parse("2026-10-14T10:30:00Z"))).toBe(false); // 21:00
+    expect(inContactHours(Date.parse("2026-07-14T22:30:00Z"))).toBe(true); // 08:00 ACST
   });
 });

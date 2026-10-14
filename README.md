@@ -109,7 +109,10 @@ Logic: `alert-deadman/check.mjs`. Tests: `test/alert-deadman.test.mjs`.
 - Older than 20 minutes: it opens one urgent `alert-deadman` issue there, and closes it when the
   heartbeat is fresh again.
 - Any urgent issue in `arcforgelabs/alerts` that is not on Arc's workboard after 15 minutes is
-  assigned to Samuel. That is the last resort when the gateway or Haven is down.
+  assigned to Samuel. That is the last resort when the gateway or Haven is down. Like Arc's
+  heartbeat, it contacts him only from 08:00 to 21:00 Adelaide time. An urgent item made at night
+  waits until 08:00. A future "call me at any time" protocol will cover life-or-death and
+  business-ending events.
 - **Identity:** the alert-receiver GitHub App. Org variable `ALERT_APP_ID`, secret
   `ALERT_APP_PRIVATE_KEY`. The workflow asks only for issues write on `arcforgelabs/alerts`.
 - The log prints counts and ages only, because this repo is public.
