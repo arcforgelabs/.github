@@ -17,6 +17,8 @@ Barnacle is OpenClaw's deterministic triage bot (`openclaw/openclaw`
 - A **20-open-PR cap** applies `r: too-many-prs`. `r: too-many-prs-override` cancels it.
 - It warns about **maintainer spam-pings**.
 
+**`r: not-in-vision`** is Arc Forge's one exception to that exemption. Each repo's `VISION.md` decides its scope, and when a maintainer applies this label the item closes with a pointer to the vision, even when the team wrote it. That's how work made stale by a vision change gets closed. `barnacle/run.mjs` handles it before upstream runs, and only for someone with write access applying the label; a bot applying it does nothing.
+
 These are exempt, as upstream: `OWNER`, `MEMBER` and `COLLABORATOR` authors, the `maintainer` team,
 admin/maintain/write repo roles, the `maintainer` label, bots, and `clawsweeper/` or `clownfish/`
 branches. `bad-barnacle` switches Barnacle off for one item.
