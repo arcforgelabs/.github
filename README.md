@@ -49,9 +49,11 @@ branches. `bad-barnacle` switches Barnacle off for one item.
 | `.github/workflows/barnacle.yml` | The reusable workflow. It runs on GitHub-hosted runners with the `arc-forge-barnacle` App token and checks out only this repo at the pinned commit. |
 | `templates/barnacle-caller.yml` | The thin caller each repo copies to `.github/workflows/barnacle.yml`, with `BARNACLE_SHA` replaced by a commit of this repo. |
 
-**Identity:** the private GitHub App `arc-forge-barnacle` (ID 5116230), installed on all org
-repositories. It has issues and pull requests write, and members, metadata, contents and actions
-read. It has no webhook. Its key is the org secret `BARNACLE_APP_PRIVATE_KEY`, and the Bitwarden
+**Identity:** the private GitHub App arc-forge-barnacle (ID 5116230). On 7 November
+2026 its installation 165993203 reports **selected repositories**, not automatic organization-wide
+coverage. The selected membership and organization secret/variable eligibility require an admitted
+administrative read; a caller file alone does not prove either. It has issues and pull requests write,
+and members, metadata, contents and actions read. It has no webhook. Its key is the org secret `BARNACLE_APP_PRIVATE_KEY`, and the Bitwarden
 item is "Arc Forge Barnacle GitHub App". It's separate from the ClawSweeper review App and from the
 `arc-forge-clawsweeper` deploy-provenance App. The App's bot account is `arc-forge-barnacle[bot]`,
 **user ID 335282622**. That is the value to swap in wherever upstream hardcodes Barnacle's actor IDs
@@ -67,6 +69,36 @@ team.
 - For one repo, add `.github/barnacle.json` to it, for example
   `{"rules":[{"label":"r: support","enabled":false}]}`. `{"enabled": false}` switches Barnacle off
   for that repo.
+
+### Coverage checkpoint (7 November 2026)
+
+A default-commit audit of all 28 repositories and 335 workflow files found ten event consumers;
+this repository supplies a reusable workflow but has no own lifecycle caller. Maintained-source
+gaps are marketplace, themes, flow, console, docs, platform and openclaw-host-operations.
+Business is also a gap, but its company issue tracker warrants narrower issue-only triage rather
+than assuming product PR heuristics. This repository needs a separate event caller if self-triage
+is selected; workflow_call does not subscribe it to events.
+
+Do not blanket-enroll repositories: security explicitly excludes bots; clawsweeper-state is
+operational storage; unadopted forks are not evidence of local triage intent. Artifacts, legal and
+releases still need an intent decision. Existing OpenClaw/OpenClaw Enterprise rehearsal callers
+are separate from inherited upstream workflows. Public/private visibility alone is not an
+exclusion: private callers already work.
+
+Before adding callers, verify the existing selected App membership and the caller's
+BARNACLE_APP_ID / BARNACLE_APP_PRIVATE_KEY eligibility. Current OAuth reads of installation
+repositories and organization variables return 403; do not treat missing visibility as a reason
+to mint credentials, expand grants or publish a caller that cannot authenticate.
+
+Genuine historical function proof: [Alerts #33](https://github.com/arcforgelabs/alerts/issues/33)
+received its retired-host reason label, then [run 39526993872](https://github.com/arcforgelabs/alerts/actions/runs/39526993872)
+executed pinned trusted automation and arc-forge-barnacle[bot]
+[posted the configured reply](https://github.com/arcforgelabs/alerts/issues/33#issuecomment-6305674449)
+and closed it. This proves that event-to-result chain, not current execution in every repository.
+Maintainer exemptions can correctly skip; Labeler uses the same App but is not auto-response proof.
+No synthetic issue or label event is required for acceptance.
+
+The wider audit and activation boundary remain in [Platform #97](https://github.com/arcforgelabs/platform/issues/97).
 
 ## Labeler and maintainer command reactions
 
