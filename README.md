@@ -4,6 +4,24 @@ Org-wide GitHub automation for Arc Forge Labs. We port OpenClaw's automation fai
 code is vendored unchanged except for small, documented patches that turn OpenClaw-specific
 values into config.
 
+## Shared ownership — 7 November 2026
+
+Samuel chose the current upstream ownership model.
+This repository owns Arc Forge GitHub automation, not all repository setup.
+
+| Responsibility | Source |
+| --- | --- |
+| Common agent workflows | [openclaw/agent-skills](https://github.com/openclaw/agent-skills). Install once; keep repository entrypoints small. |
+| Arc Forge instruction policy | [Tools organization kit](https://github.com/arcforgelabs/tools/tree/main/components/org-consistency). Consumers use a reference to the shared policy. |
+| Personal instructions | Samuel’s private personal source. Keep it separate from organization policy and public repositories. |
+| Reusable release behavior | [openclaw/release-workflows](https://github.com/openclaw/release-workflows). Select a reviewed workflow and the product-specific inputs. |
+| Organization branch baseline | [Platform GitHub stack](https://github.com/arcforgelabs/platform/tree/main/tofu/github). Product repositories retain their required checks. |
+| GitHub bot workflows | This repository. Existing reviewed callers and permissions remain unchanged. |
+
+New repository setup starts with the [Platform decision record](https://github.com/arcforgelabs/platform/tree/main/docs/github-alignment).
+Do not copy a product’s required checks or release grants into an unrelated repository.
+No source change here activates a branch rule or publishes a release.
+
 ## Barnacle
 
 Barnacle is OpenClaw's deterministic triage bot (`openclaw/openclaw`

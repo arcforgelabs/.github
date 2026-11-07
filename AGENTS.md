@@ -1,18 +1,17 @@
 # AGENTS.md
 
-Read `VISION.md` before starting work. `README.md` indexes the rest of the documentation.
+Read `README.md` before starting work.
 
 <!-- arc-forge-org-consistency:start -->
-## Pull requests
+Read the shared Arc Forge instructions before work:
+https://github.com/arcforgelabs/tools/blob/main/docs/AGENTS.shared.md
 
-Use `.github/pull_request_template.md`. Keep these sections current in the pull request body:
+Optional local source: ~/repos/tools/docs/AGENTS.shared.md.
+Verify that the local checkout has the origin arcforgelabs/tools before use.
+Do not copy the shared rules here.
+Keep repository-specific safeguards and document references outside this block.
 
-- What Problem This Solves
-- User Impact
-- Why This Change Was Made
-- Evidence
-
-Evidence names the command, the commit, the result, and what was not run. A screenshot is the real product, with the viewport and whether the data was synthetic or live. If the proof could not be run, name the gap in Evidence. When a review asks for more proof, edit the body. Maintainer authorship does not skip the sections. A passing test is evidence about this source. Production activation is a separate record.
-
-The org default procedure is `.github/org-consistency/skill/SKILL.md`. A stricter rule already in this file wins.
+Common agent workflows: https://github.com/openclaw/agent-skills.
+Product repositories own their product-specific skills.
+Reusable release workflows: https://github.com/openclaw/release-workflows.
 <!-- arc-forge-org-consistency:end -->
