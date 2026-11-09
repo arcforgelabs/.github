@@ -3,8 +3,7 @@
   "activePrLimit": 20,
   "maintainerTeam": "maintainer",
   "automationPrHeadPrefixes": [
-    "clawsweeper/",
-    "clownfish/"
+    "clawsweeper/"
   ],
   "pingWarningMessage": "Please don't ping several maintainers at once. Every issue and PR here is triaged; a maintainer will pick this up.",
   "noisyPrMessage": "Closing this PR because it looks dirty (too many unrelated or unexpected changes). This usually happens when a branch picks up unrelated commits or a merge went sideways. Please recreate the PR from a clean branch.",

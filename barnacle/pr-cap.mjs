@@ -133,7 +133,7 @@ export async function applyPrCap({ github, context, core }, config = {}) {
     return false;
   };
 
-  const automationPrHeadPrefixes = config.automationPrHeadPrefixes ?? ["clawsweeper/", "clownfish/"];
+  const automationPrHeadPrefixes = config.automationPrHeadPrefixes ?? ["clawsweeper/"];
   const isAutomationPullRequest =
     typeof headRefName === "string" &&
     automationPrHeadPrefixes.some((prefix) => headRefName.startsWith(prefix));
