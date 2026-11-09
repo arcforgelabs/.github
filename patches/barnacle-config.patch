@@ -1,3 +1,5 @@
+# Arc Forge retirement policy lives in barnacle/config.json; retain upstream
+# defaults below so vendored source and upstream fixtures remain unchanged.
 diff --git scripts/github/barnacle-auto-response.mjs scripts/github/barnacle-auto-response.mjs
 index 11406df..3e1d962 100644
 --- scripts/github/barnacle-auto-response.mjs

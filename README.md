@@ -35,9 +35,10 @@ Barnacle is OpenClaw's deterministic triage bot (`openclaw/openclaw`
 - A **20-open-PR cap** applies `r: too-many-prs`. `r: too-many-prs-override` cancels it.
 - It warns about **maintainer spam-pings**.
 
-These are exempt, as upstream: `OWNER`, `MEMBER` and `COLLABORATOR` authors, the `maintainer` team,
-admin/maintain/write repo roles, the `maintainer` label, bots, and `clawsweeper/` or `clownfish/`
-branches. `bad-barnacle` switches Barnacle off for one item.
+These are exempt: `OWNER`, `MEMBER` and `COLLABORATOR` authors, the `maintainer` team,
+admin/maintain/write repo roles, the `maintainer` label, bots, and `clawsweeper/`
+branches. Arc Forge no longer exempts retired Clownfish branches; upstream vendor
+defaults and fixtures remain unchanged. `bad-barnacle` switches Barnacle off for one item.
 
 | Path | What it is |
 |---|---|

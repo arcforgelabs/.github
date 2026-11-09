@@ -2,6 +2,7 @@
 // maintainers and automation branches, honour the override label.
 import { describe, expect, it } from "vitest";
 import { applyPrCap } from "../barnacle/pr-cap.mjs";
+import { runPrCap } from "../barnacle/run.mjs";
 
 function notFound() {
   const error = new Error("not found");
@@ -27,7 +28,10 @@ function setup({ labels = [], openPrs = 21, maintainers = [], head = "feature/x"
           throw notFound();
         },
       },
-      repos: { getCollaboratorPermissionLevel: async () => ({ data: { role_name: "read" } }) },
+      repos: {
+        getCollaboratorPermissionLevel: async () => ({ data: { role_name: "read" } }),
+        getContent: async () => { throw notFound(); },
+      },
       search: { issuesAndPullRequests: async () => ({ data: { total_count: openPrs } }) },
     },
   };
@@ -43,12 +47,26 @@ function setup({ labels = [], openPrs = 21, maintainers = [], head = "feature/x"
       },
     },
   };
-  return { calls, run: () => applyPrCap({ github, context, core: { warning: () => undefined, info: () => undefined } }, { activePrLimit: 20, maintainerTeam: "maintainer" }) };
+  const input = { github, context, core: { warning: () => undefined, info: () => undefined } };
+  return {
+    calls,
+    run: () => applyPrCap(input, { activePrLimit: 20, maintainerTeam: "maintainer" }),
+    runConfigured: () => runPrCap(input),
+  };
 }
 
 describe("PR cap", () => {
-  it("labels an author over the limit", async () => {
-    const { calls, run } = setup();
+  it.each([
+    ["clownfish/retired-fix", true],
+    ["clawsweeper/current-fix", false],
+  ])("applies the configured retirement policy to %s", async (head, capped) => {
+    const { calls, runConfigured } = setup({ head });
+    await runConfigured();
+    expect(calls.addLabels.map((c) => c.labels)).toEqual(capped ? [["r: too-many-prs"]] : []);
+  });
+
+  it.each(["feature/ordinary", "clownfish/retired-fix"])("labels an over-limit author on %s without configured prefixes", async (head) => {
+    const { calls, run } = setup({ head });
     await run();
     expect(calls.addLabels.map((c) => c.labels)).toEqual([["r: too-many-prs"]]);
   });
