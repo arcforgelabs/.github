@@ -1,4 +1,4 @@
-# Faithful reusable port; script and permission checks unchanged from vendor/openclaw.
+# Faithful reusable port of OpenClaw maintainer command reactions.
 name: Maintainer Command Reactions
 
 on:

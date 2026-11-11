@@ -1,8 +1,7 @@
 # arcforgelabs/.github
 
-Org-wide GitHub automation for Arc Forge Labs. We port OpenClaw's automation faithfully: upstream
-code is vendored unchanged except for small, documented patches that turn OpenClaw-specific
-values into config.
+Org-wide GitHub automation for Arc Forge. Product repositories own their Barnacle and labeler
+workflows. This repository retains shared maintainer command reactions and its own PR checks.
 
 ## Shared ownership — 7 November 2026
 
@@ -22,100 +21,12 @@ New repository setup starts with the [Platform decision record](https://github.c
 Do not copy a product’s required checks or release grants into an unrelated repository.
 No source change here activates a branch rule or publishes a release.
 
-## Barnacle
+## Maintainer command reactions
 
-Barnacle is OpenClaw's deterministic triage bot (`openclaw/openclaw`
-`scripts/github/barnacle-auto-response.mjs`). It does five jobs:
-
-- A **close-reason label** (`r: support`, `r: no-ci-pr` and the rest) posts a canned reply, closes
-  the item, and sometimes locks it.
-- `r: spam`, `invalid` and `dirty` close.
-- **Candidate labels** (`triage: *`) go on outside PRs. They close only when a maintainer applies one
-  by hand or adds `trigger-response`.
-- A **20-open-PR cap** applies `r: too-many-prs`. `r: too-many-prs-override` cancels it.
-- It warns about **maintainer spam-pings**.
-
-These are exempt: `OWNER`, `MEMBER` and `COLLABORATOR` authors, the `maintainer` team,
-admin/maintain/write repo roles, the `maintainer` label, bots, and `clawsweeper/`
-branches. Arc Forge no longer exempts retired Clownfish branches; upstream vendor
-defaults and fixtures remain unchanged. `bad-barnacle` switches Barnacle off for one item.
-
-| Path | What it is |
-|---|---|
-| `vendor/openclaw/` | Upstream files at the SHA in `vendor/openclaw/UPSTREAM`. They include upstream's own Barnacle tests, plus `auto-response.yml` and `labeler.yml` for reference. |
-| `patches/barnacle-config.patch` | The only change to upstream logic. It adds `configureBarnacle(config)`. Omitted keys keep upstream's values, and upstream's tests still pass. |
-| `barnacle/config.json` | Arc Forge values: messages, rule switches, PR limit and team slug. OpenClaw-product rules (`r: skill`, `r: testflight`, `r: bluebubbles`, `r: moltbook`, `r: third-party-extension` and two candidates) are kept with `enabled: false`. |
-| `barnacle/run.mjs` | Entry point. It merges the caller repo's optional `.github/barnacle.json` (merged by rule label) and runs Barnacle. |
-| `barnacle/pr-cap.mjs` | Upstream's "Apply too-many-prs label" step from `labeler.yml`. Only the limit, team and prefixes come from config. |
-| `.github/workflows/barnacle.yml` | The reusable workflow. It runs on GitHub-hosted runners with the `arc-forge-barnacle` App token and checks out only this repo at the pinned commit. |
-| `templates/barnacle-caller.yml` | The thin caller each repo copies to `.github/workflows/barnacle.yml`, with `BARNACLE_SHA` replaced by a commit of this repo. |
-
-**Identity:** the private GitHub App arc-forge-barnacle (ID 5116230). On 7 November
-2026 its installation 165993203 reports **selected repositories**, not automatic organization-wide
-coverage. The selected membership and organization secret/variable eligibility require an admitted
-administrative read; a caller file alone does not prove either. It has issues and pull requests write,
-and members, metadata, contents and actions read. It has no webhook. Its key is the org secret `BARNACLE_APP_PRIVATE_KEY`, and the Bitwarden
-item is "Arc Forge Barnacle GitHub App". It's separate from the ClawSweeper review App and from the
-`arc-forge-clawsweeper` deploy-provenance App. The App's bot account is `arc-forge-barnacle[bot]`,
-**user ID 335282622**. That is the value to swap in wherever upstream hardcodes Barnacle's actor IDs
-(257215752 and 264559031), for example in `stale.yml`.
-
-**Keep org membership public.** GitHub only reports `author_association: MEMBER` in event payloads
-for members whose membership is public. Upstream's job-level skip depends on that, so for a private
-member every event starts a billed job before the script exempts them through the `maintainer`
-team.
-
-**Turning a rule on or off:**
-- For every repo, edit `barnacle/config.json`.
-- For one repo, add `.github/barnacle.json` to it, for example
-  `{"rules":[{"label":"r: support","enabled":false}]}`. `{"enabled": false}` switches Barnacle off
-  for that repo.
-
-### Coverage checkpoint (7 November 2026)
-
-A default-commit audit of all 28 repositories and 335 workflow files found ten event consumers;
-this repository supplies a reusable workflow but has no own lifecycle caller. Maintained-source
-gaps remain; their repository-level assessment and exclusions are in the private audit record.
-This repository needs a separate event caller if self-triage is selected; workflow_call does not
-subscribe it to events.
-
-Do not blanket-enroll repositories. Respect explicit bot exclusions, operational storage and
-source-mirror contracts. Some repositories still need an intent decision; a company issue tracker
-may warrant narrower issue-only triage rather than product PR heuristics. Existing rehearsal
-callers are separate from inherited upstream workflows. Public/private visibility alone is not
-an exclusion.
-
-Before adding callers, verify the existing selected App membership and the caller's
-BARNACLE_APP_ID / BARNACLE_APP_PRIVATE_KEY eligibility. Current OAuth reads of installation
-repositories and organization variables return 403; do not treat missing visibility as a reason
-to mint credentials, expand grants or publish a caller that cannot authenticate.
-
-The private audit retains a genuine historical reason-label → pinned trusted workflow → configured
-reply and closure chain. This proves that event-to-result chain, not current execution in every
-repository. Maintainer exemptions can correctly skip; Labeler uses the same App but is not
-auto-response proof. No synthetic issue or label event is required for acceptance.
-
-The wider audit and activation boundary remain in [Platform #97](https://github.com/arcforgelabs/platform/issues/97).
-
-## Labeler and maintainer command reactions
-
-Copy `templates/labeler-caller.yml` and `templates/maintainer-command-reactions-caller.yml`
-into a repository's workflows, replacing `AUTOMATION_SHA` with the reviewed commit of this repo.
-Labeler reuses the Barnacle App secret and variable. Reactions use the caller's `GITHUB_TOKEN`.
-
-Labeler applies upstream's size thresholds (<50 / <200 / <500 / <1000 / XL), maintainer-team
-membership, and beta-blocker title rules. Upstream excludes `docs/`, `pnpm-lock.yaml`, `yarn.lock`
-and `bun.lockb` from size; other lockfiles still count. Optional area rules live in the caller's
-`.github/labeler.yml`; a missing map skips only area labels. Manual dispatch backfills size,
-maintainer and beta-blocker labels on open PRs (upstream does not backfill area labels).
-
-The reusable Labeler preserves the vendored scripts. Adaptations are the workflow-call interface,
-Arc App identity, a checkout of this automation repo at `job.workflow_sha`, the vendored helper
-path, optional area-map loading from the caller's trusted base SHA, repository-qualified
-concurrency, timeouts, and backfill input transport. One upstream bug is fixed: backfill keeps page size constant
-so a limit such as 75 with 50 per page does not process the same PRs twice. The PR-cap step is excluded because Barnacle
-already owns it. No pull-request code is checked out or executed. Reaction logic and role checks
-are unchanged; only the reusable trigger, concurrency namespace and timeout differ.
+Copy `templates/maintainer-command-reactions-caller.yml` into a repository's workflows,
+replacing `AUTOMATION_SHA` with the reviewed commit of this repo. Reactions use the caller's
+`GITHUB_TOKEN`. The upstream reaction logic and role checks are unchanged; only the reusable
+trigger, repository-qualified concurrency and timeout differ.
 
 Command reactions acknowledge `/autoclose`, `/clawsweeper autoclose`, `/clawsweeper automerge`,
 `/merge`, `/land`, and `/landpr` from users with write/maintain/admin permission. Only autoclose
@@ -144,12 +55,7 @@ Haven. Enrolled repositories are listed in `ARCFORGE_ACTIVITY_REPOSITORIES` in
 `dashboard/arcforge-activity.ts` there, and failed deliveries can be redelivered
 from the organization webhook's settings.
 
-## Updating from upstream
+## Validation
 
-```bash
-scripts/sync-upstream.sh <openclaw-sha>   # re-vendor, re-apply patches/
-npm test                                  # upstream's Barnacle tests plus ours
-```
-
-CI runs `scripts/sync-upstream.sh` with no arguments. It fails if `vendor/` drifts from the pinned
-SHA plus `patches/`. After merging, bump `BARNACLE_SHA` in the callers.
+Run `npm ci --no-audit --no-fund` and `npm test`. CI runs the same maintainer command reaction
+behavior tests. The PR context workflow separately checks pull request descriptions.

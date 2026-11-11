@@ -20,5 +20,3 @@ jobs:
           node-version: "24"
       - run: npm ci --no-audit --no-fund
       - run: npm test
-      - name: Vendored upstream matches the pinned SHA plus patches
-        run: scripts/sync-upstream.sh

@@ -3,8 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "vitest run",
-    "verify-vendor": "scripts/sync-upstream.sh"
+    "test": "vitest run"
   },
   "devDependencies": {
     "vitest": "5.0.1",
