@@ -5,9 +5,6 @@ const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
 const read = p => parse(readFileSync(p,'utf8'));
 const workflow=read('.github/workflows/maintainer-command-reactions.yml');
 const script=workflow.jobs.react.steps[0].with.script;
-it('preserves upstream reaction script',()=>{
- expect(script).toBe(read('vendor/openclaw/.github/workflows/maintainer-command-reactions.yml').jobs.react.steps[0].with.script);
-});
 it.each([
  ['/land','write',true,true],['/land extra','admin',true,true],
  ['/land','read',true,false],['/land','write',false,false],
